@@ -1,0 +1,45 @@
+// {
+// 	"compilerOptions": {
+// 		"module": "Node16",
+// 		"target": "ES2022",
+// 		"outDir": "out",
+// 		"lib": [
+// 			"ES2022"
+// 		],
+// 		"sourceMap": true,
+// 		"rootDir": "src",
+// 		"strict": true,   /* enable all strict type-checking options */
+// 		/* Additional Checks */
+// 		// "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+// 		// "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+// 		// "noUnusedParameters": true,  /* Report errors on unused parameters. */
+// 	}
+// }
+
+
+{
+	"compilerOptions": {
+	  "module": "commonjs",
+	  "target": "es2020", // Or a suitable target ES version
+	  "outDir": "out",
+	  "lib": [
+		"es2020",
+		"DOM",
+		"DOM.Iterable"
+	  ],
+	  "sourceMap": true,
+	  "rootDir": "src",
+	  "strict": true,   /* Enable all strict type-checking options. */
+	  "skipLibCheck": true /* Skip type checking of declaration files. */
+	  /* You might need additional options depending on your setup */
+	},
+	"include": [
+	  "src/**/*"
+	],
+	"exclude": [
+	  "node_modules",
+	  ".vscode-test",
+	  "media",
+	  "out"
+	]
+}
