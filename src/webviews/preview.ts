@@ -156,6 +156,36 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
     }
 });
 
+window.addEventListener('keydown', (event: KeyboardEvent) => {
+    // console.log('[PreviewScript] Keydown event:', event.key); // For debugging
+
+    // Prevent interference if user is typing in an input field, textarea, or contenteditable
+    const target = event.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        // Also check if inside Monaco Editor - Monaco handles its own arrow keys
+        // Check if the target is inside a Monaco editor instance
+        if (currentMonacoEditor && currentMonacoEditor.getDomNode()?.contains(target)) {
+            return; // Let Monaco handle its keys
+        }
+        // If it's a generic input/textarea outside Monaco, allow default arrow key behavior
+        // return; // Or, if you want arrows to always navigate slides, remove this block
+    }
+
+
+    switch (event.key) {
+        case 'ArrowLeft':
+            console.log('[PreviewScript] ArrowLeft pressed, posting "previous"');
+            vscode.postMessage({ type: 'previous' });
+            event.preventDefault(); // Prevent default browser action for arrow keys (e.g., scrolling)
+            break;
+        case 'ArrowRight':
+            console.log('[PreviewScript] ArrowRight pressed, posting "next"');
+            vscode.postMessage({ type: 'next' });
+            event.preventDefault(); // Prevent default browser action
+            break;
+    }
+});
+
 function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivElement {
     const toolbar = document.createElement('div');
     toolbar.className = 'cell-toolbar';
