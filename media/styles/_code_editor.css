@@ -1,0 +1,25 @@
+
+.code-editor-container {
+    flex-grow: 2;  /* Editor takes 2/3 of the width */
+    flex-basis: 0;
+    min-width: 0;  /* Allow shrinking */
+
+    display: flex; /* To allow Monaco instance to fill this container */
+    flex-direction: column;
+    position: relative; /* For Monaco's internal positioning needs */
+
+    background-color: var(--vscode-editor-background); /* Editor area background */
+    border: 1px solid var(--vscode-input-border, #3c3c3c); /* Border defining editor area */
+    border-radius: 2px;
+    margin: 5px; /* Small margin around editor area; adjust if output has margin too */
+    margin-right: 2.5px; /* Half margin if output also has margin-left */
+    overflow: hidden; /* Monaco handles its own internal scrolling */
+}
+
+/* Ensure Monaco's root div fills the .code-editor-container */
+.code-editor-container > .monaco-editor,
+.code-editor-container > div[data-keybinding-context] { /* Common Monaco top-level classes */
+    flex-grow: 1;    /* Make editor UI fill vertically */
+    min-height: 0;   /* Allow shrinking vertically */
+    width: 100%;     /* Take full width of parent */
+}

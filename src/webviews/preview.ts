@@ -5,6 +5,16 @@ import * as monaco from 'monaco-editor';
 // or if you're managing CSS manually (as in Option B we discussed).
 import 'monaco-editor/min/vs/editor/editor.main.css';
 
+// Import your custom CSS files
+import '../../media/styles/_base.css';
+import '../../media/styles/_layout.css';
+import '../../media/styles/_cell_general.css';
+import '../../media/styles/_cell_toolbar.css';
+import '../../media/styles/_markdown_cell.css';
+import '../../media/styles/_code_cell.css';
+import '../../media/styles/_code_editor.css';
+import '../../media/styles/_output_items.css';
+
 // Import language contributions for syntax highlighting on the main thread.
 // These are for Monaco's built-in Monarch tokenizers.
 import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js';

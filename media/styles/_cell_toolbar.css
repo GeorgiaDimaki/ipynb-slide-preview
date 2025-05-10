@@ -1,0 +1,35 @@
+/* --- 5. Cell-Specific Toolbar (Run, Delete, etc.) --- */
+.cell-toolbar {
+    position: absolute; /* Positioned relative to the .cell */
+    top: 0;
+    left: 0;
+    right: 0; /* Spans full width of .cell */
+    height: 36px; /* Fixed height - MUST match .cell padding-top */
+    display: flex;
+    justify-content: flex-end; /* Align buttons to the right */
+    align-items: center; /* Vertically center buttons */
+    padding: 0 10px; /* Horizontal padding for buttons */
+    background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c); /* Toolbar distinct background */
+    border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
+    z-index: 10; /* Ensure it's above other cell content if it were to overlap (shouldn't with padding-top) */
+}
+
+.cell-action-button {
+    background: none;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: 8px; /* Space between action buttons */
+    font-size: var(--vscode-font-size);
+    border-radius: 3px;
+}
+
+.cell-action-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1)));
+}
+
+.cell-action-button:active {
+    background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.2)));
+}
+

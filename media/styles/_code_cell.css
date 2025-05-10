@@ -1,0 +1,11 @@
+/* --- 7. Code Cell Content --- */
+/* .code-cell specific styles (if any beyond .cell) can go here */
+
+.code-cell .code-cell-body { /* Container for editor and output */
+    display: flex;
+    flex-direction: row; /* Side-by-side editor and output */
+    flex-grow: 1;        /* Fills available vertical space in .cell (after cell's padding-top) */
+    min-height: 0;       /* Essential for children to size correctly with flex-basis: 0 */
+    overflow: hidden;    /* Prevent children from expanding this container */
+}
+

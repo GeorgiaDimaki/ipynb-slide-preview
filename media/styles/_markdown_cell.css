@@ -1,0 +1,79 @@
+/* --- 6. Markdown Cell Content --- */
+/* .markdown-cell specific styles (if any beyond .cell) can go here */
+/* e.g., if it needed different internal padding than code cells before content */
+
+.markdown-cell .markdown-content {
+    padding: 16px 20px; /* Internal padding for the text block */
+    flex-grow: 1;       /* Takes available vertical space within the .cell (after cell's padding-top) */
+    overflow-y: hidden; /* As requested: NO SCROLLBAR for markdown, content will be clipped if too tall */
+                        /* Change to 'auto' to enable scrollbar if markdown overflows */
+    line-height: 1.6;
+    /* Text color inherited from .cell or body */
+}
+
+/* Detailed Markdown Element Styles */
+.markdown-cell .markdown-content h1,
+.markdown-cell .markdown-content h2,
+.markdown-cell .markdown-content h3,
+.markdown-cell .markdown-content h4,
+.markdown-cell .markdown-content h5,
+.markdown-cell .markdown-content h6 {
+    font-weight: 600;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    line-height: 1.3;
+}
+
+.markdown-cell .markdown-content p {
+    margin-top: 0;
+    margin-bottom: 1em;
+}
+
+.markdown-cell .markdown-content a {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: none;
+}
+
+.markdown-cell .markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.markdown-cell .markdown-content code { /* Inline code */
+    font-family: var(--vscode-editor-font-family);
+    background-color: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+    padding: 0.2em 0.4em;
+    font-size: 0.9em;
+    border-radius: 3px;
+}
+
+.markdown-cell .markdown-content pre { /* Code blocks */
+    background-color: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+    padding: 10px;
+    border-radius: 3px;
+    overflow-x: auto; /* Allow horizontal scroll for long code lines in markdown */
+    margin-top: 0;
+    margin-bottom: 1em;
+}
+
+.markdown-cell .markdown-content pre code { /* Code within pre */
+    padding: 0;
+    background-color: transparent;
+    font-size: 1em;
+    border-radius: 0;
+}
+
+.markdown-cell .markdown-content ul,
+.markdown-cell .markdown-content ol {
+    padding-left: 2em;
+    margin-top: 0;
+    margin-bottom: 1em;
+}
+
+.markdown-cell .markdown-content blockquote {
+    margin: 0 0 1em 0;
+    padding: 0.5em 1em;
+    color: var(--vscode-textBlockQuote-foreground, var(--vscode-editor-foreground));
+    border-left: 0.25em solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border, #ccc));
+    background-color: var(--vscode-textBlockQuote-background, transparent);
+}
+
