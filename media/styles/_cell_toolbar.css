@@ -6,12 +6,36 @@
     right: 0; /* Spans full width of .cell */
     height: 36px; /* Fixed height - MUST match .cell padding-top */
     display: flex;
-    justify-content: flex-end; /* Align buttons to the right */
+    
     align-items: center; /* Vertically center buttons */
     padding: 0 10px; /* Horizontal padding for buttons */
     background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c); /* Toolbar distinct background */
     border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
     z-index: 10; /* Ensure it's above other cell content if it were to overlap (shouldn't with padding-top) */
+}
+
+
+.toolbar-actions-left,
+.toolbar-actions-right {
+    display: flex;
+    align-items: center;
+}
+
+.toolbar-actions-left .cell-action-button {
+    margin-right: 8px; /* Space between buttons on the left */
+}
+.toolbar-actions-right .cell-action-button {
+    margin-left: 8px; /* Space between buttons on the right */
+}
+
+/* Remove margin-left from the very first button in each group if desired */
+.toolbar-actions-left .cell-action-button:first-child,
+.toolbar-actions-right .cell-action-button:first-child {
+    margin-left: 0;
+}
+
+.cell-toolbar .run-button { /* Specific style for run button if needed, e.g., margin */
+    margin-right: auto; /* This will push other items to the right */
 }
 
 .cell-action-button {
@@ -24,6 +48,11 @@
     font-size: var(--vscode-font-size);
     border-radius: 3px;
 }
+
+.cell-action-button.run-button { /* If run button is first, it might not need margin-left */
+    margin-left: 0;
+}
+
 
 .cell-action-button:hover {
     background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1)));

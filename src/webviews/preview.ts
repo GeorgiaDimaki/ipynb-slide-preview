@@ -160,6 +160,34 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivEleme
     const toolbar = document.createElement('div');
     toolbar.className = 'cell-toolbar';
 
+    
+    // This spacer will push subsequent items to the right if a run button isn't present
+    // or if we want more explicit control than just margin-right: auto on the run button.
+    // An alternative is to have two groups of buttons, one left-aligned, one right-aligned.
+    // For now, margin-right: auto on .run-button is simpler. If no run button, delete will be on left.
+    // To ensure delete is always on the right, we need a different flex setup or a spacer.
+
+    // Let's refine for: Run button always left (if present). Other buttons always right.
+    // We can achieve this by having a left group and a right group, and a spacer.
+    // Or, simpler: one button with margin-right: auto, and others naturally flow after.
+    // The current CSS targets .run-button with margin-right: auto.
+    // If there's no run button, the delete button will be the first item.
+    // If we want Delete to always be on the right, we need a different approach.
+
+    // Simpler approach for now: Keep all buttons together and use justify-content on toolbar.
+    // For "Run left, others right":
+    // 1. Add Run button
+    // 2. Add a spacer div with flex-grow: 1
+    // 3. Add other buttons (Delete, More)
+
+    // Let's refine:
+    const leftActions = document.createElement('div');
+    leftActions.className = 'toolbar-actions-left'; // Style this with display:flex
+
+    const rightActions = document.createElement('div');
+    rightActions.className = 'toolbar-actions-right'; // Style this with display:flex
+
+    // Add "Run" button for code cells (will be pushed to the left by CSS)
     if (cell.cell_type === 'code') {
         const runButton = document.createElement('button');
         runButton.className = 'cell-action-button run-button';
@@ -169,7 +197,7 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivEleme
             console.log(`[PreviewScript] Posting 'runCell' for index ${slideIndex}`);
             vscode.postMessage({ type: 'runCell', payload: { slideIndex } });
         };
-        toolbar.appendChild(runButton);
+        leftActions.appendChild(runButton);
     }
 
     const deleteButton = document.createElement('button');
@@ -179,10 +207,26 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivEleme
     deleteButton.onclick = () => {
         console.log(`[PreviewScript] Posting 'requestDeleteConfirmation' for index ${slideIndex}`);
         vscode.postMessage({ type: 'requestDeleteConfirmation', payload: { slideIndex } });
-    };
-    toolbar.appendChild(deleteButton);
+    };    
+    rightActions.appendChild(deleteButton);
 
-    // TODO: Add more cell actions (e.g., "...")
+
+    // TODO: Add "More Actions" button to rightActions
+    // const moreButton = document.createElement('button');
+    // moreButton.className = 'cell-action-button more-button';
+    // moreButton.textContent = '...';
+    // rightActions.appendChild(moreButton);
+
+
+    toolbar.appendChild(leftActions);
+    // If leftActions is empty, this spacer won't do much if rightActions is also empty.
+    // If only rightActions has content, it will be pushed to right by this spacer.
+    const spacer = document.createElement('div');
+    spacer.style.flexGrow = '1'; // This pushes rightActions to the end
+    toolbar.appendChild(spacer);
+    toolbar.appendChild(rightActions);
+    
+    
     return toolbar;
 }
 

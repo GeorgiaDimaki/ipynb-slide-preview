@@ -10482,12 +10482,29 @@ body {
   right: 0;
   height: 36px;
   display: flex;
-  justify-content: flex-end;
   align-items: center;
   padding: 0 10px;
   background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c);
   border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
   z-index: 10;
+}
+.toolbar-actions-left,
+.toolbar-actions-right {
+  display: flex;
+  align-items: center;
+}
+.toolbar-actions-left .cell-action-button {
+  margin-right: 8px;
+}
+.toolbar-actions-right .cell-action-button {
+  margin-left: 8px;
+}
+.toolbar-actions-left .cell-action-button:first-child,
+.toolbar-actions-right .cell-action-button:first-child {
+  margin-left: 0;
+}
+.cell-toolbar .run-button {
+  margin-right: auto;
 }
 .cell-action-button {
   background: none;
@@ -10498,6 +10515,9 @@ body {
   margin-left: 8px;
   font-size: var(--vscode-font-size);
   border-radius: 3px;
+}
+.cell-action-button.run-button {
+  margin-left: 0;
 }
 .cell-action-button:hover {
   background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1)));
