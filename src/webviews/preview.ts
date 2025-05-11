@@ -135,6 +135,10 @@ const indicatorSpan = document.getElementById('slide-indicator') as HTMLSpanElem
 
 let currentMonacoEditor: monaco.editor.IStandaloneCodeEditor | null = null;
 
+
+let currentPayloadSlideIndex: number | undefined;
+let lastReceivedPayload: SlidePayload | undefined;
+
 function sourceToString(source: Source): string {
     return Array.isArray(source) ? source.join('') : source;
 }
@@ -145,6 +149,8 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
     switch (message.type) {
         case 'updateSlide':
             if (message.payload) {
+                lastReceivedPayload = message.payload;
+                currentPayloadSlideIndex = message.payload.slideIndex;
                 renderSlide(message.payload);
                 updateControls(message.payload.slideIndex, message.payload.totalSlides);
             } else {
@@ -157,18 +163,43 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
 });
 
 window.addEventListener('keydown', (event: KeyboardEvent) => {
-    // console.log('[PreviewScript] Keydown event:', event.key); // For debugging
+        // console.log('[PreviewScript] Keydown event:', event.key); // For debugging
 
     // Prevent interference if user is typing in an input field, textarea, or contenteditable
     const target = event.target as HTMLElement;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        // Also check if inside Monaco Editor - Monaco handles its own arrow keys
-        // Check if the target is inside a Monaco editor instance
-        if (currentMonacoEditor && currentMonacoEditor.getDomNode()?.contains(target)) {
-            return; // Let Monaco handle its keys
+    let isMonacoEditorFocused = false;
+    
+    if (currentMonacoEditor && currentMonacoEditor.getDomNode()?.contains(target)) {
+        isMonacoEditorFocused = currentMonacoEditor.hasTextFocus();
+    }
+
+    // If focus is inside Monaco, let Monaco handle most keys,
+    // but we will specifically intercept Ctrl/Cmd+Enter for running.
+    if (isMonacoEditorFocused) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            // This is our "run and stay" shortcut, proceed to handle it below.
+        } else if (event.shiftKey && event.key === 'Enter') {
+            // If you want Shift+Enter to also run (and potentially advance later):
+            // Proceed to handle it. For now, let's make both run and stay.
         }
-        // If it's a generic input/textarea outside Monaco, allow default arrow key behavior
-        // return; // Or, if you want arrows to always navigate slides, remove this block
+        else {
+            // For any other key combination when Monaco is focused (arrows, regular Enter, etc.),
+            // let Monaco do its default action.
+            return;
+        }
+
+    } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        // If focus is in a non-Monaco input/textarea, allow most keys.
+        // We only want to intercept global arrow keys for slide navigation
+        // if we are NOT in such an input.
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            // Let the input field handle arrows
+            return;
+        }
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey || event.shiftKey) ){
+            // Let input field handle these compound Enter presses
+            return;
+        }
     }
 
 
@@ -183,6 +214,36 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
             vscode.postMessage({ type: 'next' });
             event.preventDefault(); // Prevent default browser action
             break;
+        case 'Enter':
+            // Run and stay (Ctrl+Enter or Cmd+Enter)
+            // Or Run and advance (Shift+Enter) - for now, let's make both "run and stay"
+            if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                if (typeof currentPayloadSlideIndex === 'number') {
+                    const activeCell = lastReceivedPayload?.cell;
+                    if (activeCell && activeCell.cell_type === 'code') {
+                        console.log(`[PreviewScript] Posting 'runCell' for index ${currentPayloadSlideIndex} (and stay)`);
+                        vscode.postMessage({ type: 'runCell', payload: { slideIndex: currentPayloadSlideIndex } });
+                        
+                        if (event.shiftKey) {
+                            vscode.postMessage({ type: 'next' }); // <<< ADVANCE
+                        }
+
+                        event.preventDefault(); // Prevent default action of Enter key
+                    } else {
+                        console.log('[PreviewScript] Ctrl/Cmd/Shift+Enter on non-code cell or no active cell, doing nothing for run.');
+                    }
+                } else {
+                    console.warn('[PreviewScript] Ctrl/Cmd/Shift+Enter: currentPayloadSlideIndex not available.');
+                }
+            }
+            // Note: If not Ctrl/Cmd/Shift, normal Enter key press will fall through,
+            // which is fine if no global action is intended for plain Enter.
+            break;
+        // Add other keys if needed, e.g., Space for next, Shift+Space for previous
+        // case ' ':
+        //     vscode.postMessage({ type: 'next' });
+        //     event.preventDefault();
+        //     break;
     }
 });
 
