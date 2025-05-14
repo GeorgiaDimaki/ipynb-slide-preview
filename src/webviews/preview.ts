@@ -14,6 +14,7 @@ import '../../media/styles/_markdown_cell.css';
 import '../../media/styles/_code_cell.css';
 import '../../media/styles/_code_editor.css';
 import '../../media/styles/_output_items.css';
+import '../../media/styles/_slide_add_controls.css'
 
 // Import language contributions for syntax highlighting on the main thread.
 // These are for Monaco's built-in Monarch tokenizers.
@@ -77,8 +78,25 @@ interface NextMessage { type: 'next'; }
 interface RunCellMessage { type: 'runCell'; payload: { slideIndex: number }; }
 interface DeleteCellMessage { type: 'deleteCell'; payload: { slideIndex: number }; } // Kept for direct calls if needed, though requestDeleteConfirmation is primary
 interface RequestDeleteConfirmationMessage { type: 'requestDeleteConfirmation'; payload: { slideIndex: number }; }
+interface AddCellBeforeMessage {
+    type: 'addCellBefore';
+    payload: {
+        currentSlideIndex: number; // The index of the slide *before* which to add
+        cellType: 'markdown' | 'code';
+    };
+}
+
+interface AddCellAfterMessage {
+    type: 'addCellAfter';
+    payload: {
+        currentSlideIndex: number; // The index of the slide *after* which to add
+        cellType: 'markdown' | 'code';
+    };
+}
 
 type MessageToExtension =
+      AddCellBeforeMessage
+    | AddCellAfterMessage
     | ReadyMessage
     | PreviousMessage
     | NextMessage
@@ -132,6 +150,8 @@ const contentDiv = document.getElementById('slide-content') as HTMLDivElement | 
 const prevButton = document.getElementById('prev-button') as HTMLButtonElement | null;
 const nextButton = document.getElementById('next-button') as HTMLButtonElement | null;
 const indicatorSpan = document.getElementById('slide-indicator') as HTMLSpanElement | null;
+const addSlideLeftButton = document.getElementById('add-slide-left-button') as HTMLButtonElement | null;
+const addSlideRightButton = document.getElementById('add-slide-right-button') as HTMLButtonElement | null;
 
 let currentMonacoEditor: monaco.editor.IStandaloneCodeEditor | null = null;
 
@@ -520,6 +540,44 @@ if (nextButton) {
     });
 } else {
     console.warn("[PreviewScript] Next button not found.");
+}
+
+if (addSlideLeftButton) {
+    addSlideLeftButton.addEventListener('click', () => {
+        if (typeof currentPayloadSlideIndex === 'number') {
+            console.log(`[PreviewScript] Posting 'addCellBefore' current index ${currentPayloadSlideIndex}`);
+            vscode.postMessage({
+                type: 'addCellBefore',
+                payload: {
+                    currentSlideIndex: currentPayloadSlideIndex,
+                    cellType: 'markdown' // Default to markdown for now
+                }
+            });
+        } else {
+            console.warn('[PreviewScript] AddCellBefore: currentPayloadSlideIndex not available.');
+        }
+    });
+} else {
+    console.warn('[PreviewScript] Add Slide Left button not found.');
+}
+
+if (addSlideRightButton) {
+    addSlideRightButton.addEventListener('click', () => {
+        if (typeof currentPayloadSlideIndex === 'number') {
+            console.log(`[PreviewScript] Posting 'addCellAfter' current index ${currentPayloadSlideIndex}`);
+            vscode.postMessage({
+                type: 'addCellAfter',
+                payload: {
+                    currentSlideIndex: currentPayloadSlideIndex,
+                    cellType: 'markdown' // Default to markdown for now
+                }
+            });
+        } else {
+            console.warn('[PreviewScript] AddCellAfter: currentPayloadSlideIndex not available.');
+        }
+    });
+} else {
+    console.warn('[PreviewScript] Add Slide Right button not found.');
 }
 
 // --- Initialization ---

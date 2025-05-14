@@ -10412,7 +10412,6 @@ body {
   flex-grow: 1;
   overflow-y: auto;
   padding: 20px;
-  margin-bottom: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -10677,6 +10676,59 @@ body {
   border-radius: 2px;
 }
 .code-output .output-html {
+}
+
+/* media/styles/_slide_add_controls.css */
+#main-view-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  position: relative;
+  overflow: hidden;
+  margin-top: 40px;
+}
+.side-add-slide-container {
+  width: 50px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+.side-add-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 30%;
+  background-color: transparent;
+  color: transparent;
+  border: none;
+  font-size: 26px;
+  font-weight: lighter;
+  line-height: 30px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+}
+.side-add-slide-container:hover .side-add-button {
+  opacity: 1;
+  color: var(--vscode-editorGhostText-foreground, #6c6c6c);
+  background-color: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.05));
+  pointer-events: auto;
+}
+.side-add-button:hover {
+  color: var(--vscode-editor-foreground);
+  background-color: var(--vscode-button-secondaryHoverBackground, rgba(255,255,255,0.1));
 }
 /*! Bundled license information:
 

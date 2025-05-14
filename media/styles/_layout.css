@@ -3,7 +3,7 @@
     flex-grow: 1; /* Takes up available vertical space left by other flex items in body */
     overflow-y: auto; /* Allows scrolling BETWEEN multiple slides if their sum of heights exceeds viewport */
     padding: 20px;    /* Padding around the collection of slides */
-    margin-bottom: 40px; /* Space for the fixed bottom #controls bar */
+    /* margin-bottom: 40px; /* Space for the fixed bottom #controls bar */
     display: flex;
     flex-direction: column; /* Stack slides vertically */
     align-items: center; /* Center slides horizontally if they have a max-width */

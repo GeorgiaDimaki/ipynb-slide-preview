@@ -135,6 +135,65 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
 
     // --- Document Editing Methods ---
 
+    public addCellBefore(currentIndex: number, cellType: 'markdown' | 'code'): void {
+        this.insertCellAtIndex(currentIndex, cellType, 'Add Cell Before');
+        // After insertion, the new cell is at 'currentIndex'.
+        // We want to navigate to this newly added cell.
+        this.currentSlideIndex = currentIndex; // Setter handles event firing if index changed
+        this._onDidChangeContent.fire(); // Ensure UI updates even if index value was already target
+    }
+
+    public addCellAfter(currentIndex: number, cellType: 'markdown' | 'code'): void {
+        const insertAtIndex = currentIndex + 1;
+        this.insertCellAtIndex(insertAtIndex, cellType, 'Add Cell After');
+        // After insertion, the new cell is at 'insertAtIndex'.
+        // We want to navigate to this newly added cell.
+        this.currentSlideIndex = insertAtIndex; // Setter handles event firing if index changed
+        this._onDidChangeContent.fire(); // Ensure UI updates
+    }
+
+    private insertCellAtIndex(index: number, cellType: 'markdown' | 'code', undoLabel: string): void {
+        if (index < 0 || index > this.cells.length) { // Allow inserting at the very end (index === cells.length)
+            console.warn(`[IpynbSlideDocument] insertCellAtIndex: Invalid index ${index}. Total cells: ${this.cells.length}`);
+            return;
+        }
+
+        const newCellSource = cellType === 'code' ? ['# New Code Cell'] : ['# New Markdown Slide'];
+        const newCell: IpynbCell = {
+            cell_type: cellType,
+            source: newCellSource,
+            metadata: {},
+            outputs: cellType === 'code' ? [] : undefined, // Outputs only for code cells
+        };
+
+        const oldDocumentDataForUndo = JSON.parse(JSON.stringify(this._documentData));
+        const oldSlideIndexForUndo = this._currentSlideIndex;
+
+        this._documentData.cells.splice(index, 0, newCell);
+        console.log(`[IpynbSlideDocument] Inserted ${cellType} cell at index ${index}. New count: ${this.cells.length}.`);
+
+        this._onDidChangeDocument.fire({
+            document: this,
+            label: undoLabel,
+            undo: async () => {
+                this._documentData = oldDocumentDataForUndo;
+                // Restore currentSlideIndex carefully, ensuring it's valid
+                const maxRestoredIndex = this._documentData.cells.length > 0 ? this._documentData.cells.length - 1 : 0;
+                this._currentSlideIndex = Math.min(oldSlideIndexForUndo, maxRestoredIndex);
+                this._currentSlideIndex = Math.max(0, this._currentSlideIndex);
+                this._onDidChangeContent.fire(); // Update webview
+            },
+            redo: async () => {
+                this._documentData.cells.splice(index, 0, newCell);
+                // When redoing, set current index to the newly added cell
+                this.currentSlideIndex = index; // Go to the newly added (redone) cell
+                this._onDidChangeContent.fire(); // Update webview
+            }
+        });
+        // Note: _onDidChangeContent is fired by currentSlideIndex setter if it changes,
+        // or explicitly after these operations to ensure webview syncs with cell list changes.
+    }
+
     public runCell(index: number): void {
         if (index < 0 || index >= this.cells.length) {
             console.warn(`[IpynbSlideDocument] runCell: Invalid index ${index}. Total cells: ${this.cells.length}`);

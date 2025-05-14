@@ -1,0 +1,57 @@
+#main-view-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch; /* Children will fill height */
+    position: relative;   /* For potential absolute positioning of children if needed later */
+    overflow: hidden;
+    margin-top: 40px; /* Space for fixed bottom #controls */
+}
+
+/* --- Side "Add Slide" Trigger Areas/Containers --- */
+.side-add-slide-container {
+    width: 50px;  /* Width of the gutter/hover area */
+    flex-shrink: 0; /* Prevent shrinking */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative; /* To position button within it if needed */
+    /* background-color: rgba(255,0,0,0.1); */ /* For debugging the hover area */
+}
+
+/* The actual "+" button styling */
+.side-add-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 30%;
+    background-color: transparent; /* Make button background invisible */
+    color: transparent; /* Make '+' invisible by default */
+    border: none; /* No border for the button itself */
+    font-size: 26px;
+    font-weight: lighter;
+    line-height: 30px; /* Adjust for vertical centering */
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+    opacity: 0; /* Button is fully transparent initially */
+    pointer-events: none; /* Not clickable until its container is hovered */
+}
+
+/* Show and style the button when its PARENT .side-add-slide-container is hovered */
+.side-add-slide-container:hover .side-add-button {
+    opacity: 1;
+    color: var(--vscode-editorGhostText-foreground, #6c6c6c); /* Subtle '+' color */
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.05)); /* Slight bg for button area */
+    pointer-events: auto; /* Button becomes clickable */
+}
+
+.side-add-button:hover {
+    color: var(--vscode-editor-foreground); /* '+' becomes more prominent */
+    background-color: var(--vscode-button-secondaryHoverBackground, rgba(255,255,255,0.1));
+    /* transform: scale(1.1); // Optional: keep if you like the zoom */
+}

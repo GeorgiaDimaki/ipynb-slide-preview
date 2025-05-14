@@ -110,6 +110,24 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                         console.warn('[Provider] Invalid payload for requestDeleteConfirmation message:', message.payload);
                     }
                     break;
+                case 'addCellBefore':
+                    if (message.payload &&
+                        typeof message.payload.currentSlideIndex === 'number' &&
+                        (message.payload.cellType === 'markdown' || message.payload.cellType === 'code')) {
+                        document.addCellBefore(message.payload.currentSlideIndex, message.payload.cellType);
+                    } else {
+                        console.warn('[Provider] Invalid payload for addCellBefore message:', message.payload);
+                    }
+                    break;
+                case 'addCellAfter':
+                    if (message.payload &&
+                        typeof message.payload.currentSlideIndex === 'number' &&
+                        (message.payload.cellType === 'markdown' || message.payload.cellType === 'code')) {
+                        document.addCellAfter(message.payload.currentSlideIndex, message.payload.cellType);
+                    } else {
+                        console.warn('[Provider] Invalid payload for addCellAfter message:', message.payload);
+                    }
+                    break;
                 default:
                     console.warn('[Provider] Received unknown message type from webview:', message.type);
             }
@@ -179,15 +197,26 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
-                <div id="slide-content">
-                    <p>Loading slide content...</p>
+            <div id="main-view-wrapper">
+                <div id="add-slide-left-container" class="side-add-slide-container">
+                    <button id="add-slide-left-button" class="side-add-button" title="Add slide before current">+</button>
                 </div>
-                <div id="controls">
-                    <button id="prev-button">Previous</button>
-                    <span id="slide-indicator"></span>
-                    <button id="next-button">Next</button>
+
+                <div id="slide-content">  <p>Loading slide content...</p>
                 </div>
-                <script nonce="${nonce}" src="${scriptUri}"></script>
+
+                <div id="add-slide-right-container" class="side-add-slide-container">
+                    <button id="add-slide-right-button" class="side-add-button" title="Add slide after current">+</button>
+                </div>
+            </div>
+
+            <div id="controls">
+                <button id="prev-button">Previous</button>
+                <span id="slide-indicator"></span>
+                <button id="next-button">Next</button>
+            </div>
+
+            <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>
         `;
