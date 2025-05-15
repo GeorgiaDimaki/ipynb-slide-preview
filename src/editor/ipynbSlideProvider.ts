@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { IpynbSlideDocument } from './ipynbSlideDocument';
 import { getNonce } from './util';
 
+const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
+
 export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlideDocument> {
 
     private readonly documentWebviews = new Map<string, Set<vscode.WebviewPanel>>();
@@ -33,8 +35,30 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const fileData: Uint8Array = await vscode.workspace.fs.readFile(backupUri);
         const document = new IpynbSlideDocument(uri, fileData);
 
+        // Restore slide index early, before listeners are attached that might depend on it
+        const workspaceStateKey = `${WORKSPACE_STATE_PREFIX}${document.uri.toString()}`;
+        const restoredIndex = this.context.workspaceState.get<number>(workspaceStateKey);
+
+        if (typeof restoredIndex === 'number') {
+            if (restoredIndex >= 0 && restoredIndex < document.cells.length) {
+                document.currentSlideIndex = restoredIndex;
+                console.log(`[Provider] Restored slide index for ${document.uri.fsPath} from workspaceState to: ${document.currentSlideIndex}`);
+            } else if (document.cells.length > 0) {
+                document.currentSlideIndex = 0; // Default to 0 if out of bounds
+                console.log(`[Provider] workspaceState index ${restoredIndex} out of bounds for ${document.uri.fsPath}. Defaulting to 0.`);
+            } else {
+                document.currentSlideIndex = 0; // No cells
+                console.log(`[Provider] No cells in ${document.uri.fsPath}. Defaulting index to 0.`);
+            }
+        } else {
+            // No saved state, document initializes to 0 by default
+            console.log(`[Provider] No workspaceState found for slide index of ${document.uri.fsPath}. Document will use default index 0.`);
+        }
         const changeListener = document.onDidChangeContent(() => {
             this.updateAllWebviewsForDocument(document);
+            const newWorkspaceStateKey = `${WORKSPACE_STATE_PREFIX}${document.uri.toString()}`;
+            console.log(`[Provider] Saving slide index ${document.currentSlideIndex} to workspaceState for ${newWorkspaceStateKey}`);
+            this.context.workspaceState.update(newWorkspaceStateKey, document.currentSlideIndex);
         });
         document.setContentChangeListener(changeListener);
 
