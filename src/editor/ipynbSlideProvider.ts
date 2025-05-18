@@ -6,6 +6,13 @@ const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
 
 export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlideDocument> {
 
+    // --- Emitter and event for the Provider ---
+    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<IpynbSlideDocument>>();
+    public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+
+    // --- Map to store disposables for document edit listeners ---
+    private readonly documentEditListeners = new Map<string, vscode.Disposable>();
+
     private readonly documentWebviews = new Map<string, Set<vscode.WebviewPanel>>();
 
     constructor(private readonly context: vscode.ExtensionContext) { }
@@ -62,6 +69,16 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         });
         document.setContentChangeListener(changeListener);
 
+        // If a listener for this document's edits already exists (e.g., re-opening), dispose of it.
+        this.documentEditListeners.get(document.uri.toString())?.dispose();
+
+        const editListener = document.onDidChangeCustomDocument(event => {
+            // When the document fires its edit event, the provider relays it.
+            console.log(`[Provider] Relaying onDidChangeCustomDocument event from document ${event.document.uri.fsPath}. Label: ${event.label}`);
+            this._onDidChangeCustomDocument.fire(event); // Fire the provider's event
+        });
+        this.documentEditListeners.set(document.uri.toString(), editListener);
+        
         return document;
     }
 
@@ -163,8 +180,9 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             webviewSet?.delete(webviewPanel);
             if (webviewSet?.size === 0) {
                 this.documentWebviews.delete(uriString);
-                // VS Code handles document disposal based on its lifetime rules,
-                // especially since supportsMultipleEditorsPerDocument is false.
+                console.log(`[Provider] Disposing edit listener for document: ${uriString}`);
+                this.documentEditListeners.get(uriString)?.dispose();
+                this.documentEditListeners.delete(uriString);        
             }
         });
     }
@@ -262,40 +280,40 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         return await document.backup(context.destination, cancellation);
     }
 
-    // This onDidChangeCustomDocument is essential for VS Code to enable undo/redo & dirty indicators
-    // It should ideally be driven by the document itself.
-    // For now, if your document's _onDidChangeDocument is public as onDidChangeCustomDocument, that's good.
-    // If IpynbSlideDocument.onDidChangeCustomDocument is the event emitter, use that.
-    // Let's assume we need to manage it per document if multiple are open,
-    // but since supportsMultipleEditorsPerDocument is false, we can simplify.
-    // A proper implementation here would involve creating an event emitter in the provider
-    // that listens to document.onDidChangeCustomDocument for the *active* or *relevant* document.
-    // For simplicity in a single-document-per-editor scenario, this might just forward
-    // from a known document, but that's not robust.
-    // The most correct way if not forwarding directly from the document instance:
-    private _onDidChangCustomDocumentEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<IpynbSlideDocument>>();
-    get onDidChangeCustomDocument(): vscode.Event<vscode.CustomDocumentEditEvent<IpynbSlideDocument>> {
-        // In a real scenario, when document.onDidChangeCustomDocument fires,
-        // you'd fire this provider's emitter.
-        // For now, if the document itself has 'public readonly onDidChangeCustomDocument',
-        // VS Code might pick that up if the provider instance exposes it correctly,
-        // but the API expects the provider to have this property.
-        //
-        // Simplest for now, assuming edits are handled by _onDidChangeContent re-rendering:
-        // To actually enable VS Code's native undo/redo for your document edits,
-        // the document.deleteCell (and other editing methods) MUST fire
-        // document._onDidChangeDocument correctly, and this getter should return
-        // an event that VS Code listens to.
-        //
-        // If IpynbSlideDocument has `public readonly onDidChangeCustomDocument = this._onDidChangeDocument.event;`
-        // and you have access to the specific `document` instance for which this event is being requested,
-        // you could return `document.onDidChangeCustomDocument;`. But this getter is general for the provider.
-        //
-        // A common pattern:
-        // When a document is opened/resolved, subscribe to its onDidChangeCustomDocument
-        // and have it fire this provider's emitter. Unsubscribe on dispose.
-        // For now, this is a placeholder that won't enable undo/redo via VS Code's UI based on this event.
-        // Undo/redo for cell deletion is currently handled by the CustomDocumentEditEvent in deleteCell.
-        return this._onDidChangCustomDocumentEmitter.event;
-    }
+    // // This onDidChangeCustomDocument is essential for VS Code to enable undo/redo & dirty indicators
+    // // It should ideally be driven by the document itself.
+    // // For now, if your document's _onDidChangeDocument is public as onDidChangeCustomDocument, that's good.
+    // // If IpynbSlideDocument.onDidChangeCustomDocument is the event emitter, use that.
+    // // Let's assume we need to manage it per document if multiple are open,
+    // // but since supportsMultipleEditorsPerDocument is false, we can simplify.
+    // // A proper implementation here would involve creating an event emitter in the provider
+    // // that listens to document.onDidChangeCustomDocument for the *active* or *relevant* document.
+    // // For simplicity in a single-document-per-editor scenario, this might just forward
+    // // from a known document, but that's not robust.
+    // // The most correct way if not forwarding directly from the document instance:
+    // private _onDidChangCustomDocumentEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<IpynbSlideDocument>>();
+    // get onDidChangeCustomDocument(): vscode.Event<vscode.CustomDocumentEditEvent<IpynbSlideDocument>> {
+    //     // In a real scenario, when document.onDidChangeCustomDocument fires,
+    //     // you'd fire this provider's emitter.
+    //     // For now, if the document itself has 'public readonly onDidChangeCustomDocument',
+    //     // VS Code might pick that up if the provider instance exposes it correctly,
+    //     // but the API expects the provider to have this property.
+    //     //
+    //     // Simplest for now, assuming edits are handled by _onDidChangeContent re-rendering:
+    //     // To actually enable VS Code's native undo/redo for your document edits,
+    //     // the document.deleteCell (and other editing methods) MUST fire
+    //     // document._onDidChangeDocument correctly, and this getter should return
+    //     // an event that VS Code listens to.
+    //     //
+    //     // If IpynbSlideDocument has `public readonly onDidChangeCustomDocument = this._onDidChangeDocument.event;`
+    //     // and you have access to the specific `document` instance for which this event is being requested,
+    //     // you could return `document.onDidChangeCustomDocument;`. But this getter is general for the provider.
+    //     //
+    //     // A common pattern:
+    //     // When a document is opened/resolved, subscribe to its onDidChangeCustomDocument
+    //     // and have it fire this provider's emitter. Unsubscribe on dispose.
+    //     // For now, this is a placeholder that won't enable undo/redo via VS Code's UI based on this event.
+    //     // Undo/redo for cell deletion is currently handled by the CustomDocumentEditEvent in deleteCell.
+    //     return this._onDidChangCustomDocumentEmitter.event;
+    // }
 }

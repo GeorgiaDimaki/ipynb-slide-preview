@@ -153,47 +153,62 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     }
 
     private insertCellAtIndex(index: number, cellType: 'markdown' | 'code', undoLabel: string): void {
-        if (index < 0 || index > this.cells.length) { // Allow inserting at the very end (index === cells.length)
-            console.warn(`[IpynbSlideDocument] insertCellAtIndex: Invalid index ${index}. Total cells: ${this.cells.length}`);
+        if (index < 0 || index > this.cells.length) {
+            console.warn(`[IpynbSlideDocument] insertCellAtIndex: Invalid index ${index}.`);
             return;
         }
-
+    
         const newCellSource = cellType === 'code' ? ['# New Code Cell'] : ['# New Markdown Slide'];
-        const newCell: IpynbCell = {
+        const newCell: IpynbCell = { /* ... create newCell ... */
             cell_type: cellType,
             source: newCellSource,
             metadata: {},
-            outputs: cellType === 'code' ? [] : undefined, // Outputs only for code cells
+            outputs: cellType === 'code' ? [] : undefined,
         };
-
-        const oldDocumentDataForUndo = JSON.parse(JSON.stringify(this._documentData));
-        const oldSlideIndexForUndo = this._currentSlideIndex;
-
+    
+        const slideIndexBeforeInsert = this._currentSlideIndex;
+    
+        // Perform the insertion
         this._documentData.cells.splice(index, 0, newCell);
-        console.log(`[IpynbSlideDocument] Inserted ${cellType} cell at index ${index}. New count: ${this.cells.length}.`);
-
+        console.log(`[IpynbSlideDocument] Inserted ${cellType} cell at index ${index}.`);
+    
+        // After insertion, typically navigate to the new cell
+        const newCurrentIndex = index;
+        const indexActuallyChanged = this._currentSlideIndex !== newCurrentIndex;
+        this._currentSlideIndex = newCurrentIndex;
+    
+        this._onDidChangeContent.fire(); // Always fire for webview update
+        console.log(`[IpynbSlideDocument] After insert, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
+    
         this._onDidChangeDocument.fire({
             document: this,
             label: undoLabel,
             undo: async () => {
-                this._documentData = oldDocumentDataForUndo;
-                // Restore currentSlideIndex carefully, ensuring it's valid
-                const maxRestoredIndex = this._documentData.cells.length > 0 ? this._documentData.cells.length - 1 : 0;
-                this._currentSlideIndex = Math.min(oldSlideIndexForUndo, maxRestoredIndex);
-                this._currentSlideIndex = Math.max(0, this._currentSlideIndex);
-                this._onDidChangeContent.fire(); // Update webview
+                console.log(`[IpynbSlideDocument] UNDO Insert: Removing cell at index ${index}`);
+                this._documentData.cells.splice(index, 1); // Remove the added cell
+                // Restore the slide index to what it was before this insertion
+                // or a logical position (e.g., the slide before the insertion point)
+                this.currentSlideIndex = slideIndexBeforeInsert;
+                // If length is 0, setter will make it 0. If index was > new length, it's clamped.
+                // If it was before 'index', it's fine.
+                // If it was 'index' or after, it effectively shifts.
+                if(this.cells.length > 0 && slideIndexBeforeInsert >= index) { // if original index was at or after insertion point
+                    this.currentSlideIndex = Math.min(slideIndexBeforeInsert, this.cells.length -1);
+                } else {
+                     this.currentSlideIndex = slideIndexBeforeInsert;
+                }
+                this._onDidChangeContent.fire();
+                console.log(`[IpynbSlideDocument] After UNDO Insert, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             },
             redo: async () => {
-                this._documentData.cells.splice(index, 0, newCell);
-                // When redoing, set current index to the newly added cell
-                this.currentSlideIndex = index; // Go to the newly added (redone) cell
-                this._onDidChangeContent.fire(); // Update webview
+                console.log(`[IpynbSlideDocument] REDO Insert: Re-inserting cell at index ${index}`);
+                this._documentData.cells.splice(index, 0, newCell); // Re-insert the same newCell object
+                this.currentSlideIndex = index; // Go to the re-inserted cell
+                this._onDidChangeContent.fire();
+                console.log(`[IpynbSlideDocument] After REDO Insert, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             }
         });
-        // Note: _onDidChangeContent is fired by currentSlideIndex setter if it changes,
-        // or explicitly after these operations to ensure webview syncs with cell list changes.
     }
-
     public runCell(index: number): void {
         if (index < 0 || index >= this.cells.length) {
             console.warn(`[IpynbSlideDocument] runCell: Invalid index ${index}. Total cells: ${this.cells.length}`);
@@ -229,8 +244,12 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
             return;
         }
 
-        const oldDocumentData = JSON.parse(JSON.stringify(this._documentData));
-        const oldSlideIndex = this._currentSlideIndex;
+        const documentSnapshotForUndo = JSON.parse(JSON.stringify(this._documentData));
+        const deletedCellForRedo = JSON.parse(JSON.stringify(this._documentData.cells[index])); // Keep a copy of the cell itself for redo
+        const slideIndexBeforeDelete = this._currentSlideIndex;
+
+        // const oldDocumentData = JSON.parse(JSON.stringify(this._documentData));
+        // const oldSlideIndex = this._currentSlideIndex;
 
         const deletedCell = this._documentData.cells.splice(index, 1)[0];
         const deletedCellSourcePreview = Array.isArray(deletedCell.source)
@@ -240,44 +259,48 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         console.log(`[IpynbSlideDocument] Deleted cell at index ${index}. New cell count: ${this.cells.length}`);
 
         // Adjust currentSlideIndex after deletion
-        let newCurrentIndex = oldSlideIndex;
+        let newCurrentIndex = slideIndexBeforeDelete;
         if (this.cells.length === 0) {
             newCurrentIndex = 0;
-        } else if (oldSlideIndex === index) {
+        } else if (slideIndexBeforeDelete === index) {
             newCurrentIndex = Math.min(index, this.cells.length - 1);
-        } else if (oldSlideIndex > index) {
-            newCurrentIndex = oldSlideIndex - 1;
+        } else if (slideIndexBeforeDelete > index) {
+            newCurrentIndex = slideIndexBeforeDelete - 1;
         }
-        // Use the setter to apply the new index and fire events if it changed
-        this.currentSlideIndex = newCurrentIndex;
+        // Use the setter for currentSlideIndex to handle side effects like firing _onDidChangeContent
+        // but we also need to fire _onDidChangeContent if the index value didn't change but the underlying data did
+        const indexActuallyChanged = this._currentSlideIndex !== newCurrentIndex;
+        this._currentSlideIndex = newCurrentIndex;
 
-        // Always fire _onDidChangeContent after a delete, as totalSlides changed or content at current index changed
-        // (even if currentSlideIndex itself didn't need to change value, its meaning might have)
-        this._onDidChangeContent.fire();
+        if (!indexActuallyChanged) { // If setter didn't fire because value is same, but cell list changed
+            this._onDidChangeContent.fire();
+        }
+        // If indexActuallyChanged, the setter for currentSlideIndex already fired _onDidChangeContent.    
 
+        console.log(`[IpynbSlideDocument] After delete, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
 
         this._onDidChangeDocument.fire({
             document: this,
             label: `Delete Cell: "${deletedCellSourcePreview}..."`,
             undo: async () => {
-                this._documentData = oldDocumentData;
-                const maxRestoredIndex = this._documentData.cells.length > 0 ? this._documentData.cells.length - 1 : 0;
-                this.currentSlideIndex = Math.min(oldSlideIndex, maxRestoredIndex);
-                this.currentSlideIndex = Math.max(0, this.currentSlideIndex);
+                console.log(`[IpynbSlideDocument] UNDO Delete: Restoring cell at index ${index}`);
+                // Restore the cell by inserting it back
+                this._documentData.cells.splice(index, 0, deletedCell); // Re-insert the actual deleted cell
+                // Restore the slide index to what it was before this deletion
+                this.currentSlideIndex = slideIndexBeforeDelete;
+                // If currentSlideIndex value didn't change from what it was just before calling undo,
+                // but data did change (cell reinserted), ensure webview updates.
                 this._onDidChangeContent.fire();
+                console.log(`[IpynbSlideDocument] After UNDO Delete, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             },
             redo: async () => {
+                console.log(`[IpynbSlideDocument] REDO Delete: Re-deleting cell at index ${index}`);
+                // Re-perform the deletion.
                 this._documentData.cells.splice(index, 1);
-                let redoCurrentIndex = oldSlideIndex;
-                if (this.cells.length === 0) {
-                    redoCurrentIndex = 0;
-                } else if (oldSlideIndex === index) {
-                    redoCurrentIndex = Math.min(index, this.cells.length - 1);
-                } else if (oldSlideIndex > index) {
-                    redoCurrentIndex = oldSlideIndex - 1;
-                }
-                this.currentSlideIndex = redoCurrentIndex;
+                // Recalculate currentSlideIndex as done in the original delete
+                this.currentSlideIndex = newCurrentIndex; // Use the index calculated during the original delete
                 this._onDidChangeContent.fire();
+                console.log(`[IpynbSlideDocument] After REDO Delete, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             }
         });
         console.log(`[IpynbSlideDocument] After delete, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);

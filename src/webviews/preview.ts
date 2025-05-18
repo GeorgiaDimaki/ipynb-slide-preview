@@ -14,7 +14,7 @@ import '../../media/styles/_markdown_cell.css';
 import '../../media/styles/_code_cell.css';
 import '../../media/styles/_code_editor.css';
 import '../../media/styles/_output_items.css';
-import '../../media/styles/_slide_add_controls.css'
+import '../../media/styles/_slide_add_controls.css';
 
 // Import language contributions for syntax highlighting on the main thread.
 // These are for Monaco's built-in Monarch tokenizers.
