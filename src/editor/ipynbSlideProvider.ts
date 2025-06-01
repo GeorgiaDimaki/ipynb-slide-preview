@@ -169,6 +169,27 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                         console.warn('[Provider] Invalid payload for addCellAfter message:', message.payload);
                     }
                     break;
+                case 'cellContentChanged':
+                    if (message.payload &&
+                        typeof message.payload.slideIndex === 'number' &&
+                        typeof message.payload.newSource === 'string') { // Or handle string[] if Monaco gives that
+                        console.log(`[Provider] Received cellContentChanged for index ${message.payload.slideIndex}`);
+                        document.updateCellSource( // We'll define this temporary method next
+                            message.payload.slideIndex,
+                            message.payload.newSource
+                        );
+                    } else {
+                        console.warn('[Provider] Invalid payload for cellContentChanged message:', message.payload);
+                    }
+                    break;
+                case 'requestGlobalUndo':
+                    console.log('[Provider] Received requestGlobalUndo from webview.');
+                    vscode.commands.executeCommand('undo');
+                    break;
+                case 'requestGlobalRedo':
+                    console.log('[Provider] Received requestGlobalRedo from webview.');
+                    vscode.commands.executeCommand('redo');
+                    break;
                 default:
                     console.warn('[Provider] Received unknown message type from webview:', message.type);
             }

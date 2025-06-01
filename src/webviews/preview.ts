@@ -72,6 +72,9 @@ interface UpdateSlideMessage {
 type MessageFromExtension = UpdateSlideMessage;
 
 // Messages from Webview to Extension
+interface GlobalUndoMessage { type: 'requestGlobalUndo' }
+interface GlobalRedoMessage { type: 'requestGlobalRedo' }
+interface CellContentChangedMessage { type: 'cellContentChanged'; payload: {slideIndex: number; newSource: string; }; }
 interface ReadyMessage { type: 'ready'; }
 interface PreviousMessage { type: 'previous'; }
 interface NextMessage { type: 'next'; }
@@ -98,11 +101,14 @@ type MessageToExtension =
       AddCellBeforeMessage
     | AddCellAfterMessage
     | ReadyMessage
+    | GlobalRedoMessage
+    | GlobalUndoMessage
     | PreviousMessage
     | NextMessage
     | RunCellMessage
     | DeleteCellMessage
-    | RequestDeleteConfirmationMessage;
+    | RequestDeleteConfirmationMessage
+    | CellContentChangedMessage;
 
 // Notebook Structure Types
 type Source = string | string[];
@@ -160,7 +166,7 @@ let currentPayloadSlideIndex: number | undefined;
 let lastReceivedPayload: SlidePayload | undefined;
 
 function sourceToString(source: Source): string {
-    return Array.isArray(source) ? source.join('') : source;
+    return Array.isArray(source) ? source.join('\n') : source;
 }
 
 window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) => {
@@ -390,7 +396,7 @@ function renderSlide(payload: SlidePayload): void {
             value: sourceToString(cell.source),
             language: language,
             theme: 'vs-dark', // Consider deriving from VS Code theme
-            readOnly: true,   // For now
+            readOnly: false,  
             lineNumbers: 'on',
             automaticLayout: true,
             minimap: { enabled: false },
@@ -401,7 +407,68 @@ function renderSlide(payload: SlidePayload): void {
 
         try {
             currentMonacoEditor = monaco.editor.create(editorContainer, editorOptions);
-            console.log(`[PreviewScript] Monaco editor instance created for cell index ${payload.slideIndex}`);
+            if (currentMonacoEditor) {
+                
+                let debounceTimer: number | undefined;
+
+                console.log(`[PreviewScript] Monaco editor instance created for cell index ${payload.slideIndex}`);
+            
+                // Dispose of previous listener if any (important if editor instance is reused carefully)
+                // For now, assuming currentMonacoEditor is fresh or its listeners are auto-disposed with it.
+            
+                currentMonacoEditor.onDidChangeModelContent(() => {
+                    if (currentMonacoEditor && typeof currentPayloadSlideIndex === 'number') {
+                        // Clear any existing timer
+                        if (debounceTimer) {
+                            clearTimeout(debounceTimer);
+                        }
+
+                        const newSource = currentMonacoEditor.getValue();
+                        const idx = currentPayloadSlideIndex
+
+                        // Start a new timer
+                        debounceTimer = window.setTimeout(() => {
+                            console.log(`[PreviewScript] Debounced: Cell content changed for slide ${currentPayloadSlideIndex}. New source length: ${newSource.length}`);
+                            vscode.postMessage({
+                                type: 'cellContentChanged', // We'll have the provider call the new 'updateCellSource'
+                                payload: {
+                                    slideIndex: idx,
+                                    newSource: newSource // Send the full new source as a string
+                                }
+                            });
+                        }, 500);
+
+
+
+                        currentMonacoEditor.onKeyDown(e => {
+                            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                            let isUndo = false;
+                            let isRedo = false;
+                    
+                            if (isMac) {
+                                isUndo = e.metaKey && !e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Cmd+Z
+                                isRedo = e.metaKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Cmd+Shift+Z
+                            } else { // Windows/Linux
+                                isUndo = e.ctrlKey && !e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Ctrl+Z
+                                isRedo = (e.ctrlKey && e.keyCode === monaco.KeyCode.KeyY) || (e.ctrlKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ); // Ctrl+Y or Ctrl+Shift+Z
+                            }
+                    
+                            if (isUndo) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('[PreviewScript] Intercepted Undo shortcut. Requesting global undo.');
+                                vscode.postMessage({ type: 'requestGlobalUndo' });
+                            } else if (isRedo) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('[PreviewScript] Intercepted Redo shortcut. Requesting global redo.');
+                                vscode.postMessage({ type: 'requestGlobalRedo' });
+                            }
+                        });
+                    }
+                });
+            }
+
         } catch (e) {
             console.error("[PreviewScript] Error creating Monaco editor instance:", e);
             if (editorContainer) {

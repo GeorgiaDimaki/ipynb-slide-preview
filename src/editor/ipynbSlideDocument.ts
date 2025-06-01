@@ -427,6 +427,57 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
             throw e; // Re-throw to let VS Code know the operation failed
         }
     }
+    public updateCellSource(cellIndex: number, newSourceString: string): void {
+        if (cellIndex < 0 || cellIndex >= this.cells.length) {
+            console.warn(`[IpynbSlideDocument] updateCellSource: Invalid index ${cellIndex}.`);
+            return;
+        }
+    
+        const cell = this._documentData.cells[cellIndex];
+        if (!cell) {
+            console.warn(`[IpynbSlideDocument] updateCellSource: No cell found at index ${cellIndex}.`);
+            return;
+        }
+    
+        // Current source from the document model (likely string[])
+        const oldSourceArray: string[] = Array.isArray(cell.source) ? [...cell.source] : [String(cell.source)];
+        // Convert newSourceString (from Monaco) to string[] for consistent comparison and storage
+        const newSourceArray: string[] = newSourceString.split(/\r?\n/);
+    
+        // Simple check to see if content actually changed
+        // For more robust check, compare array contents element by element or stringified versions
+        if (JSON.stringify(oldSourceArray) === JSON.stringify(newSourceArray)) {
+            console.log(`[IpynbSlideDocument] updateCellSource: No actual change to cell ${cellIndex} content.`);
+            return;
+        }
+    
+        console.log(`[IpynbSlideDocument] Updating source for cell ${cellIndex} and firing _onDidChangeDocument.`);
+    
+        // Update the document data
+        cell.source = newSourceArray;
+    
+        // Fire _onDidChangeDocument to make this edit undoable
+        this._onDidChangeDocument.fire({
+            document: this,
+            label: 'Edit Cell Content',
+            undo: async () => {
+                console.log(`[IpynbSlideDocument] UNDO Edit Cell Content: Index ${cellIndex}`);
+                const cellToUndo = this._documentData.cells[cellIndex];
+                if (cellToUndo) {
+                    cellToUndo.source = oldSourceArray; // Restore the old source (which was a string[])
+                    this._onDidChangeContent.fire(); // Notify webview to re-render with oldSource
+                }
+            },
+            redo: async () => {
+                console.log(`[IpynbSlideDocument] REDO Edit Cell Content: Index ${cellIndex}`);
+                const cellToRedo = this._documentData.cells[cellIndex];
+                if (cellToRedo) {
+                    cellToRedo.source = newSourceArray; // Restore the new source (which was a string[])
+                    this._onDidChangeContent.fire(); // Notify webview to re-render with newSource
+                }
+            }
+        });
+    }
 
     async backup(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         console.log(`[IpynbSlideDocument] Backup operation invoked for ${destination.fsPath}.`);
