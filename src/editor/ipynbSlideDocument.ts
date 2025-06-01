@@ -319,24 +319,64 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         // await vscode.workspace.fs.writeFile(destination, fileData);
     }
 
+    async _doRevert(prevCellLength: number) {
+        // 1. Read the file content from disk
+        const fileData = await vscode.workspace.fs.readFile(this.uri);
+        const jsonString = Buffer.from(fileData).toString('utf8');
+        const parsedData = JSON.parse(jsonString || '{}');
+
+        // 2. Reset the internal document data with the re-read content (State S0)
+        this._documentData = {
+            cells: Array.isArray(parsedData.cells) ? parsedData.cells : [],
+            metadata: typeof parsedData.metadata === 'object' && parsedData.metadata !== null ? parsedData.metadata : {},
+            nbformat: typeof parsedData.nbformat === 'number' ? parsedData.nbformat : 4,
+            nbformat_minor: typeof parsedData.nbformat_minor === 'number' ? parsedData.nbformat_minor : 5,
+        };
+
+        // 3. Reset the current slide index (e.g., to the beginning)
+        const oldSlideIndexBeforeThisRevertSet = this._currentSlideIndex; // Value before setting to 0
+        this.currentSlideIndex = 0; // Setter fires _onDidChangeContent if value changes from oldSlideIndexBeforeThisRevertSet
+
+        // Explicitly fire _onDidChangeContent if index was already 0 but cell list changed.
+        if (oldSlideIndexBeforeThisRevertSet === 0 && (this._documentData.cells.length !== prevCellLength) ) {
+             this._onDidChangeContent.fire();
+        }
+        // Note: The above 'if' is for the _onDidChangeContent for the revert action itself.
+        // The simplified 'if (this._currentSlideIndex === 0)' is for the 'undo of the revert'.
+
+        console.log(`[IpynbSlideDocument] Document reverted. New slide index: ${this._currentSlideIndex}, Total cells: ${this.cells.length}`);
+    }
+
     async revert(_cancellation: vscode.CancellationToken): Promise<void> {
-        console.log('[IpynbSlideDocument] Revert operation invoked but not fully implemented.');
-        // try {
-        //     const fileData = await vscode.workspace.fs.readFile(this.uri);
-        //     const jsonString = Buffer.from(fileData).toString('utf8');
-        //     const parsedData = JSON.parse(jsonString || '{}');
-        //     this._documentData = {
-        //         cells: Array.isArray(parsedData.cells) ? parsedData.cells : [],
-        //         metadata: typeof parsedData.metadata === 'object' && parsedData.metadata !== null ? parsedData.metadata : {},
-        //         nbformat: typeof parsedData.nbformat === 'number' ? parsedData.nbformat : 4,
-        //         nbformat_minor: typeof parsedData.nbformat_minor === 'number' ? parsedData.nbformat_minor : 5,
-        //     };
-        //     this.currentSlideIndex = 0; // Reset slide index, will fire _onDidChangeContent via setter
-        //     this._onDidChangeContent.fire(); // Ensure webview updates if index didn't change but content did
-        // } catch (e) {
-        //     console.error(`[IpynbSlideDocument] Error reverting document ${this.uri.fsPath}:`, e);
-        //     vscode.window.showErrorMessage(`Error reverting document: ${(e as Error).message}`);
+        console.log(`[IpynbSlideDocument] Revert operation invoked for ${this.uri.fsPath}.`);
+        if (_cancellation.isCancellationRequested) {
+            console.log('[IpynbSlideDocument] Revert cancelled.');
+            return;
+        }
+    
+        // Store the state *before* revert, for the undo of the revert action itself
+        // These variables will be captured by the closures of the undo/redo functions.
+        const preRevertDocumentData = JSON.parse(JSON.stringify(this._documentData));
+        // const preRevertSlideIndex = this._currentSlideIndex;
+        // const _restorePrev = () => {
+        //     this._documentData = preRevertDocumentData; // state becomes S1_data
+        //     this.currentSlideIndex = preRevertSlideIndex; // state becomes S1_index
+
+        //     // Fire _onDidChangeContent for webview update to S1 state
+        //     // Simplified logic: setter fires if index changed from 0, else we fire if index is now 0.
+        //     if (this._currentSlideIndex === 0) {
+        //         this._onDidChangeContent.fire();
+        //     }
         // }
+    
+        try {
+            this._doRevert(preRevertDocumentData.cells.length)
+            
+        } catch (e) {
+            console.error(`[IpynbSlideDocument] Error reverting document ${this.uri.fsPath}:`, e);
+            vscode.window.showErrorMessage(`Error reverting document: ${(e as Error).message}`);
+            throw e; // Re-throw to let VS Code know the operation failed
+        }
     }
 
     async backup(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
