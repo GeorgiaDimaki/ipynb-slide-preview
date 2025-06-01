@@ -309,14 +309,63 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     // --- Methods Required by CustomEditorProvider (Stubs for a Read-Only/Preview Focus) ---
 
     async save(_cancellation: vscode.CancellationToken): Promise<void> {
-        console.log('[IpynbSlideDocument] Save operation invoked but not fully implemented for preview.');
-        // Example: await this.saveAs(this.uri, _cancellation);
+        console.log(`[IpynbSlideDocument] Save operation invoked for ${this.uri.fsPath}.`);
+        if (_cancellation.isCancellationRequested) {
+            console.log('[IpynbSlideDocument] Save cancelled before starting.');
+            return;
+        }
+        // Delegate to saveAs with the current document URI
+        await this.saveAs(this.uri, _cancellation);
+        // After a successful save, VS Code will automatically:
+        // 1. Clear the "dirty" marker.
+        // 2. Update its internal reference for the "saved state" of the document.
+        //    The undo stack up to this point will now lead to this saved state.
+    
     }
 
     async saveAs(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<void> {
-        console.log(`[IpynbSlideDocument] Save As operation invoked for ${destination.fsPath} but not fully implemented.`);
-        // const fileData = Buffer.from(JSON.stringify(this._documentData, null, 2), 'utf8');
-        // await vscode.workspace.fs.writeFile(destination, fileData);
+        console.log(`[IpynbSlideDocument] Save As operation invoked for ${destination.fsPath}.`);
+        if (_cancellation.isCancellationRequested) {
+            console.log('[IpynbSlideDocument] Save As cancelled before starting.');
+            return; // Or throw a cancellation error if preferred by VS Code API for this.
+                        // For now, just returning to indicate no save occurred.
+        }
+    
+        try {
+            const  currentDocumentData = this._documentData; // Get the current data
+            // Ensure nbformat and nbformat_minor are numbers, defaulting if somehow not.
+            // This is already handled well in your constructor, but good to be mindful for serialization.
+            const dataToSave: IpynbData = {
+                cells: currentDocumentData.cells.map(cell => ({ ...cell })), // Create shallow copies of cells
+                metadata: { ...currentDocumentData.metadata }, // Shallow copy of metadata
+                nbformat: typeof currentDocumentData.nbformat === 'number' ? currentDocumentData.nbformat : 4,
+                nbformat_minor: typeof currentDocumentData.nbformat_minor === 'number' ? currentDocumentData.nbformat_minor : 5,
+            };
+    
+            const fileDataString = JSON.stringify(dataToSave, null, 2); // Pretty print with 2 spaces
+            const fileData = Buffer.from(fileDataString, 'utf8');
+    
+            if (_cancellation.isCancellationRequested) {
+                console.log('[IpynbSlideDocument] Save As cancelled before writing file.');
+                return;
+            }
+    
+            await vscode.workspace.fs.writeFile(destination, fileData);
+            console.log(`[IpynbSlideDocument] Document successfully saved to ${destination.fsPath}`);
+    
+            // After a successful save (especially saveAs to a new URI or first save),
+            // VS Code typically updates its baseline for the document.
+            // If 'destination' is different from 'this.uri', the editor might even re-open
+            // for the new URI, or you might need to handle updating 'this.uri'.
+            // For now, VS Code's CustomEditor API should handle marking the document clean
+            // and updating its internal "saved" state reference upon successful completion
+            // of the saveCustomDocumentAs method in the provider.
+    
+        } catch (e) {
+            console.error(`[IpynbSlideDocument] Error saving document to ${destination.fsPath}:`, e);
+            vscode.window.showErrorMessage(`Error saving document: ${(e as Error).message}`);
+            throw e; // Re-throw so VS Code knows the operation failed.
+        }
     }
 
     async _doRevert(prevCellLength: number) {
