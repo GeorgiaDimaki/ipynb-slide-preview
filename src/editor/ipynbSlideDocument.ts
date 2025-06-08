@@ -419,7 +419,7 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         // }
     
         try {
-            this._doRevert(preRevertDocumentData.cells.length)
+            this._doRevert(preRevertDocumentData.cells.length);
             
         } catch (e) {
             console.error(`[IpynbSlideDocument] Error reverting document ${this.uri.fsPath}:`, e);
@@ -455,6 +455,10 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     
         // Update the document data
         cell.source = newSourceArray;
+        
+        // Notify listeners (like the provider) that the document's content has changed.
+        // This will trigger the webview to be updated with the new data.
+        this._onDidChangeContent.fire();
     
         // Fire _onDidChangeDocument to make this edit undoable
         this._onDidChangeDocument.fire({

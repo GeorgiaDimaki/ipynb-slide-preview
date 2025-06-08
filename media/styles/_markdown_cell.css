@@ -4,7 +4,8 @@
 
 .markdown-cell .markdown-content {
     padding: 16px 20px; /* Internal padding for the text block */
-    flex-grow: 1;       /* Takes available vertical space within the .cell (after cell's padding-top) */
+    display: block; /* Default state: visible */
+    /* flex-grow: 1;       Takes available vertical space within the .cell (after cell's padding-top) */
     overflow-y: hidden; /* As requested: NO SCROLLBAR for markdown, content will be clipped if too tall */
                         /* Change to 'auto' to enable scrollbar if markdown overflows */
     line-height: 1.6;
@@ -75,5 +76,50 @@
     color: var(--vscode-textBlockQuote-foreground, var(--vscode-editor-foreground));
     border-left: 0.25em solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border, #ccc));
     background-color: var(--vscode-textBlockQuote-background, transparent);
+}
+
+
+.markdown-cell-body {
+    /* If using flex to make editor expand */
+    /*min-height: 100px; Or whatever makes sense, or flex-grow if parent is flex */
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Crucial for flex children sizing */
+    overflow: hidden; /* Let children handle their own scrolling */
+}
+
+.markdown-editor-wrapper {
+    width: 100%; /* Usually desired */
+    height: 300px; /* Example: Set an explicit height */
+    /* OR if .markdown-cell-body is display: flex; flex-direction: column; */
+    /* flex-grow: 1; */
+    /* border: 1px solid #555; /* Optional: for debugging layout */
+}
+
+.markdown-cell .markdown-editor-wrapper {
+    display: none; /* Default state: hidden */
+    flex-grow: 1; /* Allow it to fill the markdown-cell-body */
+    min-height: 0;
+}
+
+/* When the body has the .is-editing class... */
+.markdown-cell.is-editing .markdown-editor-wrapper {
+    display: flex; /* ...show the editor wrapper. */
+    flex-direction: column;
+}
+
+.markdown-cell.is-editing .markdown-content {
+    display: none; /* ...hide the rendered content. */
+}
+
+/* --- Toolbar Button Icon Toggle --- */
+.markdown-toggle-edit-button::before {
+    content: '\270E'; /* Pencil icon */
+    font-family: sans-serif; /* */
+}
+
+.markdown-cell.is-editing .markdown-toggle-edit-button::before {
+    content: '\2713'; /* Checkmark icon */
 }
 

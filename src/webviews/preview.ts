@@ -1,5 +1,8 @@
 import { marked } from 'marked';
-import * as monaco from 'monaco-editor';
+
+import { EditorManager } from './editorManager'; // Imports the manager
+import { NotebookCell, SlidePayload, VsCodeApi, MessageFromExtension, MarkdownCell, Output } from './types'; // Imports shared types
+import { sourceToString } from './utils'; // Imports shared utils
 
 // Import Monaco editor core CSS if your bundler/plugin doesn't handle it automatically,
 // or if you're managing CSS manually (as in Option B we discussed).
@@ -56,101 +59,15 @@ import 'monaco-editor/esm/vs/basic-languages/css/css.contribution.js';
     }
 };
 
-// --- Type Definitions ---
-
-interface VsCodeApi {
-    postMessage(message: MessageToExtension): void;
-}
 
 declare function acquireVsCodeApi(): VsCodeApi;
 
-// Messages from Extension to Webview
-interface UpdateSlideMessage {
-    type: 'updateSlide';
-    payload: SlidePayload;
-}
-type MessageFromExtension = UpdateSlideMessage;
-
-// Messages from Webview to Extension
-interface GlobalUndoMessage { type: 'requestGlobalUndo' }
-interface GlobalRedoMessage { type: 'requestGlobalRedo' }
-interface CellContentChangedMessage { type: 'cellContentChanged'; payload: {slideIndex: number; newSource: string; }; }
-interface ReadyMessage { type: 'ready'; }
-interface PreviousMessage { type: 'previous'; }
-interface NextMessage { type: 'next'; }
-interface RunCellMessage { type: 'runCell'; payload: { slideIndex: number }; }
-interface DeleteCellMessage { type: 'deleteCell'; payload: { slideIndex: number }; } // Kept for direct calls if needed, though requestDeleteConfirmation is primary
-interface RequestDeleteConfirmationMessage { type: 'requestDeleteConfirmation'; payload: { slideIndex: number }; }
-interface AddCellBeforeMessage {
-    type: 'addCellBefore';
-    payload: {
-        currentSlideIndex: number; // The index of the slide *before* which to add
-        cellType: 'markdown' | 'code';
-    };
-}
-
-interface AddCellAfterMessage {
-    type: 'addCellAfter';
-    payload: {
-        currentSlideIndex: number; // The index of the slide *after* which to add
-        cellType: 'markdown' | 'code';
-    };
-}
-
-type MessageToExtension =
-      AddCellBeforeMessage
-    | AddCellAfterMessage
-    | ReadyMessage
-    | GlobalRedoMessage
-    | GlobalUndoMessage
-    | PreviousMessage
-    | NextMessage
-    | RunCellMessage
-    | DeleteCellMessage
-    | RequestDeleteConfirmationMessage
-    | CellContentChangedMessage;
-
-// Notebook Structure Types
-type Source = string | string[];
-
-interface BaseCell {
-    cell_type: string;
-    source: Source;
-    metadata: Record<string, any>;
-}
-
-interface MarkdownCell extends BaseCell {
-    cell_type: 'markdown';
-}
-
-interface CodeCell extends BaseCell {
-    cell_type: 'code';
-    outputs?: Output[];
-    execution_count?: number | null;
-}
-
-type NotebookCell = MarkdownCell | CodeCell;
-
-// Output Types
-interface StreamOutput { output_type: 'stream'; name: 'stdout' | 'stderr'; text: Source; }
-interface DataBundle { [mimeType: string]: Source; }
-interface DisplayDataOutput { output_type: 'display_data'; data: DataBundle; metadata?: Record<string, any>; }
-interface ExecuteResultOutput { output_type: 'execute_result'; execution_count: number | null; data: DataBundle; metadata?: Record<string, any>; }
-interface ErrorOutput { output_type: 'error'; ename: string; evalue: string; traceback: string[]; }
-type Output = StreamOutput | DisplayDataOutput | ExecuteResultOutput | ErrorOutput;
-
-// Payload for 'updateSlide' message
-interface SlidePayload {
-    cell: NotebookCell | null;
-    slideIndex: number;
-    totalSlides: number;
-    notebookLanguage: string;
-}
 
 // --- Main Webview Script ---
 
 console.log('[PreviewScript] Initializing...');
 const vscode = acquireVsCodeApi();
+EditorManager.initialize(vscode);
 
 const contentDiv = document.getElementById('slide-content') as HTMLDivElement | null;
 const prevButton = document.getElementById('prev-button') as HTMLButtonElement | null;
@@ -159,15 +76,9 @@ const indicatorSpan = document.getElementById('slide-indicator') as HTMLSpanElem
 const addSlideLeftButton = document.getElementById('add-slide-left-button') as HTMLButtonElement | null;
 const addSlideRightButton = document.getElementById('add-slide-right-button') as HTMLButtonElement | null;
 
-let currentMonacoEditor: monaco.editor.IStandaloneCodeEditor | null = null;
-
 
 let currentPayloadSlideIndex: number | undefined;
 let lastReceivedPayload: SlidePayload | undefined;
-
-function sourceToString(source: Source): string {
-    return Array.isArray(source) ? source.join('\n') : source;
-}
 
 window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) => {
     const message = event.data;
@@ -188,33 +99,20 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
     }
 });
 
-window.addEventListener('keydown', (event: KeyboardEvent) => {
-        // console.log('[PreviewScript] Keydown event:', event.key); // For debugging
+window.addEventListener('keydown', (event: KeyboardEvent) => {    
+    
+    // If our editor manager has an active editor and it has focus,
+    // let the editor's own keydown handler (inside EditorManager) do all the work.
+    // This prevents ArrowLeft/ArrowRight from navigating slides while typing in an editor.
+    if (EditorManager.activeEditor?.hasTextFocus()) {
+        return;
+    }
+
 
     // Prevent interference if user is typing in an input field, textarea, or contenteditable
     const target = event.target as HTMLElement;
-    let isMonacoEditorFocused = false;
     
-    if (currentMonacoEditor && currentMonacoEditor.getDomNode()?.contains(target)) {
-        isMonacoEditorFocused = currentMonacoEditor.hasTextFocus();
-    }
-
-    // If focus is inside Monaco, let Monaco handle most keys,
-    // but we will specifically intercept Ctrl/Cmd+Enter for running.
-    if (isMonacoEditorFocused) {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            // This is our "run and stay" shortcut, proceed to handle it below.
-        } else if (event.shiftKey && event.key === 'Enter') {
-            // If you want Shift+Enter to also run (and potentially advance later):
-            // Proceed to handle it. For now, let's make both run and stay.
-        }
-        else {
-            // For any other key combination when Monaco is focused (arrows, regular Enter, etc.),
-            // let Monaco do its default action.
-            return;
-        }
-
-    } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         // If focus is in a non-Monaco input/textarea, allow most keys.
         // We only want to intercept global arrow keys for slide navigation
         // if we are NOT in such an input.
@@ -240,31 +138,6 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
             vscode.postMessage({ type: 'next' });
             event.preventDefault(); // Prevent default browser action
             break;
-        case 'Enter':
-            // Run and stay (Ctrl+Enter or Cmd+Enter)
-            // Or Run and advance (Shift+Enter) - for now, let's make both "run and stay"
-            if (event.ctrlKey || event.metaKey || event.shiftKey) {
-                if (typeof currentPayloadSlideIndex === 'number') {
-                    const activeCell = lastReceivedPayload?.cell;
-                    if (activeCell && activeCell.cell_type === 'code') {
-                        console.log(`[PreviewScript] Posting 'runCell' for index ${currentPayloadSlideIndex} (and stay)`);
-                        vscode.postMessage({ type: 'runCell', payload: { slideIndex: currentPayloadSlideIndex } });
-                        
-                        if (event.shiftKey) {
-                            vscode.postMessage({ type: 'next' }); // <<< ADVANCE
-                        }
-
-                        event.preventDefault(); // Prevent default action of Enter key
-                    } else {
-                        console.log('[PreviewScript] Ctrl/Cmd/Shift+Enter on non-code cell or no active cell, doing nothing for run.');
-                    }
-                } else {
-                    console.warn('[PreviewScript] Ctrl/Cmd/Shift+Enter: currentPayloadSlideIndex not available.');
-                }
-            }
-            // Note: If not Ctrl/Cmd/Shift, normal Enter key press will fall through,
-            // which is fine if no global action is intended for plain Enter.
-            break;
         // Add other keys if needed, e.g., Space for next, Shift+Space for previous
         // case ' ':
         //     vscode.postMessage({ type: 'next' });
@@ -273,7 +146,7 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
     }
 });
 
-function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivElement {
+function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainerElement: HTMLDivElement): HTMLDivElement {
     const toolbar = document.createElement('div');
     toolbar.className = 'cell-toolbar';
 
@@ -315,6 +188,18 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivEleme
             vscode.postMessage({ type: 'runCell', payload: { slideIndex } });
         };
         leftActions.appendChild(runButton);
+    } else if (cell.cell_type === 'markdown') {
+        const toggleEditButton = document.createElement('button');
+        toggleEditButton.className = 'cell-action-button markdown-toggle-edit-button';
+        
+        toggleEditButton.title = 'Edit Markdown';
+        toggleEditButton.onclick = () => {
+            const body = cellContainerElement.querySelector('.markdown-cell-body');
+            if (body) {
+                EditorManager.toggleMarkdownEdit(slideIndex, cellContainerElement, cell as MarkdownCell);
+            }        
+        };
+        leftActions.appendChild(toggleEditButton); // Place it on the left for now
     }
 
     const deleteButton = document.createElement('button');
@@ -348,18 +233,56 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number): HTMLDivEleme
 }
 
 function renderSlide(payload: SlidePayload): void {
-    if (!contentDiv) {
-        console.error("[PreviewScript] renderSlide: contentDiv not found!");
+    if (!contentDiv) { return; }
+    console.log(`[PreviewScript] renderSlide called for slide ${payload.slideIndex}`);
+
+    // If we get an update for the slide that already has an active editor,
+    // we just update its content instead of doing a disruptive full re-render.
+    if (EditorManager.activeEditor && EditorManager.activeEditorInfo?.slideIndex === payload.slideIndex && payload.cell) {
+        const newSource = sourceToString(payload.cell.source);
+        const editorModel = EditorManager.activeEditor.getModel();
+
+        // Only update if the content is actually different, to avoid moving the cursor needlessly.
+        if (editorModel && editorModel.getValue() !== newSource) {
+            console.log(`[PreviewScript] renderSlide: Applying non-destructive update to active editor for slide ${payload.slideIndex}`);
+            
+            // Push an edit to the model. This is better than `setValue` because it
+            // allows Monaco to create a proper undo/redo step within its own buffer.
+            const fullRange = editorModel.getFullModelRange();
+            editorModel.pushEditOperations(
+                [], // Previous selections
+                [{ range: fullRange, text: newSource }],
+                () => null // New selections
+            );
+
+            // After programmatically changing the content, we must also update
+            // our 'initialSource' baseline to prevent thinking this is a new user edit.
+            EditorManager.activeEditorInfo.initialSource = newSource;
+        }
+
+
+        // The editor is updated, but the toolbar's event listeners are still stale.
+        // We must rebuild the toolbar to give it fresh closures with the new payload data.
+        const cellContainerDiv = EditorManager.activeEditorInfo.cellContainer.closest('.cell') as HTMLDivElement | null;
+        if (cellContainerDiv) {
+            const oldToolbar = cellContainerDiv.querySelector('.cell-toolbar');
+            if (oldToolbar) {
+                console.log('[PreviewScript] Re-binding toolbar listeners with fresh cell data.');
+                const newToolbar = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
+                oldToolbar.replaceWith(newToolbar);
+            }
+        }
+
+        // IMPORTANT: After this non-destructive update, we stop. We do not proceed
+        // to the full re-render logic below.
         return;
     }
-    console.log(`[PreviewScript] renderSlide called. Cell type: ${payload.cell?.cell_type}, Slide Index: ${payload.slideIndex}`);
-    contentDiv.innerHTML = ''; // Clear previous slide
 
-    if (currentMonacoEditor) {
-        console.log("[PreviewScript] Disposing previous Monaco editor instance.");
-        currentMonacoEditor.dispose();
-        currentMonacoEditor = null;
-    }
+    // Call EditorManager.disposeCurrent() at the very beginning.
+    // This commits any pending changes and cleans up the editor from the previous slide.
+    EditorManager.disposeCurrent();
+
+    contentDiv.innerHTML = ''; // Clear previous slide
 
     const cell = payload.cell;
     if (!cell) {
@@ -367,114 +290,41 @@ function renderSlide(payload: SlidePayload): void {
         return;
     }
 
+
     const cellContainerDiv = document.createElement('div');
     cellContainerDiv.className = `cell ${cell.cell_type}-cell`; // Dynamic class for cell type
     cellContainerDiv.dataset.slideIndex = payload.slideIndex.toString();
 
-    const toolbar = createCellToolbar(cell, payload.slideIndex);
+    const toolbar = createCellToolbar(cell.cell_type === 'code' ? cell : payload.cell as MarkdownCell, payload.slideIndex, cellContainerDiv);
     cellContainerDiv.appendChild(toolbar);
 
     if (cell.cell_type === 'markdown') {
-        const mkDiv = document.createElement('div');
-        mkDiv.className = 'markdown-content';
-        mkDiv.innerHTML = marked.parse(sourceToString(cell.source)) as string;
-        cellContainerDiv.appendChild(mkDiv);
+
+        const bodyDiv = document.createElement('div');
+        bodyDiv.className = 'markdown-cell-body';
+
+        // This container shows the rendered HTML.
+        const renderedContentDiv = document.createElement('div');
+        renderedContentDiv.className = 'markdown-content';
+        renderedContentDiv.innerHTML = marked.parse(sourceToString(cell.source)) as string;
+        renderedContentDiv.style.display = '';
+        bodyDiv.appendChild(renderedContentDiv);
+        
+        // This container is a placeholder for where the editor will go when toggled.
+        const editorWrapper = document.createElement('div');
+        editorWrapper.className = 'markdown-editor-wrapper';
+        bodyDiv.appendChild(editorWrapper);
+
+        cellContainerDiv.appendChild(bodyDiv);
+
     } else if (cell.cell_type === 'code') {
+
         const bodyDiv = document.createElement('div');
         bodyDiv.className = 'code-cell-body';
 
         const editorContainer = document.createElement('div');
         editorContainer.className = 'code-editor-container';
         bodyDiv.appendChild(editorContainer);
-
-        console.log('[PreviewScript] Cell metadata for code cell:', JSON.stringify(cell.metadata, null, 2));
-        const cellSpecificLanguage = (cell.metadata?.language_info?.name || cell.metadata?.kernelspec?.language);
-        const language = (cellSpecificLanguage || payload.notebookLanguage || 'plaintext').toLowerCase();
-        console.log(`[PreviewScript] Monaco language for cell index ${payload.slideIndex}: "${language}"`);
-
-        const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
-            value: sourceToString(cell.source),
-            language: language,
-            theme: 'vs-dark', // Consider deriving from VS Code theme
-            readOnly: false,  
-            lineNumbers: 'on',
-            automaticLayout: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: 'on', // 'on' is good for slides
-            // contextmenu: false, // Optionally disable Monaco's context menu
-        };
-
-        try {
-            currentMonacoEditor = monaco.editor.create(editorContainer, editorOptions);
-            if (currentMonacoEditor) {
-                
-                let debounceTimer: number | undefined;
-
-                console.log(`[PreviewScript] Monaco editor instance created for cell index ${payload.slideIndex}`);
-            
-                // Dispose of previous listener if any (important if editor instance is reused carefully)
-                // For now, assuming currentMonacoEditor is fresh or its listeners are auto-disposed with it.
-            
-                currentMonacoEditor.onDidChangeModelContent(() => {
-                    if (currentMonacoEditor && typeof currentPayloadSlideIndex === 'number') {
-                        // Clear any existing timer
-                        if (debounceTimer) {
-                            clearTimeout(debounceTimer);
-                        }
-
-                        const newSource = currentMonacoEditor.getValue();
-                        const idx = currentPayloadSlideIndex
-
-                        // Start a new timer
-                        debounceTimer = window.setTimeout(() => {
-                            console.log(`[PreviewScript] Debounced: Cell content changed for slide ${currentPayloadSlideIndex}. New source length: ${newSource.length}`);
-                            vscode.postMessage({
-                                type: 'cellContentChanged', // We'll have the provider call the new 'updateCellSource'
-                                payload: {
-                                    slideIndex: idx,
-                                    newSource: newSource // Send the full new source as a string
-                                }
-                            });
-                        }, 500);
-
-
-
-                        currentMonacoEditor.onKeyDown(e => {
-                            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                            let isUndo = false;
-                            let isRedo = false;
-                    
-                            if (isMac) {
-                                isUndo = e.metaKey && !e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Cmd+Z
-                                isRedo = e.metaKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Cmd+Shift+Z
-                            } else { // Windows/Linux
-                                isUndo = e.ctrlKey && !e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ; // Ctrl+Z
-                                isRedo = (e.ctrlKey && e.keyCode === monaco.KeyCode.KeyY) || (e.ctrlKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ); // Ctrl+Y or Ctrl+Shift+Z
-                            }
-                    
-                            if (isUndo) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('[PreviewScript] Intercepted Undo shortcut. Requesting global undo.');
-                                vscode.postMessage({ type: 'requestGlobalUndo' });
-                            } else if (isRedo) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('[PreviewScript] Intercepted Redo shortcut. Requesting global redo.');
-                                vscode.postMessage({ type: 'requestGlobalRedo' });
-                            }
-                        });
-                    }
-                });
-            }
-
-        } catch (e) {
-            console.error("[PreviewScript] Error creating Monaco editor instance:", e);
-            if (editorContainer) {
-                editorContainer.textContent = "Error creating Monaco editor: " + (e as Error).message;
-            }
-        }
 
         if (cell.outputs && cell.outputs.length > 0) {
             const outputWrapperDiv = document.createElement('div');
@@ -488,6 +338,15 @@ function renderSlide(payload: SlidePayload): void {
             }
         }
         cellContainerDiv.appendChild(bodyDiv);
+
+        const language = (cell.metadata?.language_info?.name || payload.notebookLanguage || 'plaintext').toLowerCase();
+        EditorManager.create(
+            editorContainer,
+            payload.slideIndex,
+            language,
+            sourceToString(cell.source)
+        );
+
     } else {
         const unknownDiv = document.createElement('div');
         unknownDiv.className = 'unknown-content';

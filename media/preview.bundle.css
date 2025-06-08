@@ -10528,7 +10528,7 @@ body {
 /* media/styles/_markdown_cell.css */
 .markdown-cell .markdown-content {
   padding: 16px 20px;
-  flex-grow: 1;
+  display: block;
   overflow-y: hidden;
   line-height: 1.6;
 }
@@ -10587,6 +10587,36 @@ body {
   color: var(--vscode-textBlockQuote-foreground, var(--vscode-editor-foreground));
   border-left: 0.25em solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border, #ccc));
   background-color: var(--vscode-textBlockQuote-background, transparent);
+}
+.markdown-cell-body {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.markdown-editor-wrapper {
+  width: 100%;
+  height: 300px;
+}
+.markdown-cell .markdown-editor-wrapper {
+  display: none;
+  flex-grow: 1;
+  min-height: 0;
+}
+.markdown-cell.is-editing .markdown-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+.markdown-cell.is-editing .markdown-content {
+  display: none;
+}
+.markdown-toggle-edit-button::before {
+  content: "\270e";
+  font-family: sans-serif;
+}
+.markdown-cell.is-editing .markdown-toggle-edit-button::before {
+  content: "\2713";
 }
 
 /* media/styles/_code_cell.css */
