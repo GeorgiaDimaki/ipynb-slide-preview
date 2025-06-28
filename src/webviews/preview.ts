@@ -1,7 +1,7 @@
 import { marked } from 'marked';
 
 import { EditorManager } from './editorManager'; // Imports the manager
-import { NotebookCell, SlidePayload, VsCodeApi, MessageFromExtension, MarkdownCell, Output } from './types'; // Imports shared types
+import { NotebookCell, CodeCell, SlidePayload, VsCodeApi, MessageFromExtension, MarkdownCell, Output } from './types'; // Imports shared types
 import { sourceToString } from './utils'; // Imports shared utils
 
 // Import Monaco editor core CSS if your bundler/plugin doesn't handle it automatically,
@@ -18,6 +18,7 @@ import '../../media/styles/_code_cell.css';
 import '../../media/styles/_code_editor.css';
 import '../../media/styles/_output_items.css';
 import '../../media/styles/_slide_add_controls.css';
+import '../../media/styles/_main_toolbar.css';
 
 // Import language contributions for syntax highlighting on the main thread.
 // These are for Monaco's built-in Monarch tokenizers.
@@ -75,21 +76,33 @@ const nextButton = document.getElementById('next-button') as HTMLButtonElement |
 const indicatorSpan = document.getElementById('slide-indicator') as HTMLSpanElement | null;
 const addSlideLeftButton = document.getElementById('add-slide-left-button') as HTMLButtonElement | null;
 const addSlideRightButton = document.getElementById('add-slide-right-button') as HTMLButtonElement | null;
+const kernelNameSpan = document.getElementById('kernel-indicator-name') as HTMLSpanElement | null;
+const kernelStatusContainer = document.getElementById('kernel-status-container') as HTMLDivElement | null;
 
 
 let currentPayloadSlideIndex: number | undefined;
 let lastReceivedPayload: SlidePayload | undefined;
 
+if (kernelStatusContainer) {
+    kernelStatusContainer.addEventListener('click', () => {
+        console.log('[PreviewScript] Kernel selector clicked. Requesting kernel selection.');
+        vscode.postMessage({ type: 'requestKernelSelection' });
+    });
+}
+
 window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) => {
     const message = event.data;
     console.log('[PreviewScript] Received message:', message.type, message.payload);
     switch (message.type) {
-        case 'updateSlide':
+        case 'update':
             if (message.payload) {
                 lastReceivedPayload = message.payload;
                 currentPayloadSlideIndex = message.payload.slideIndex;
                 renderSlide(message.payload);
                 updateControls(message.payload.slideIndex, message.payload.totalSlides);
+                if (kernelNameSpan && message.payload.controllerName) {
+                    kernelNameSpan.textContent = message.payload.controllerName;
+                }
             } else {
                 console.warn('[PreviewScript] updateSlide message received with no payload.');
             }
@@ -239,42 +252,63 @@ function renderSlide(payload: SlidePayload): void {
     // If we get an update for the slide that already has an active editor,
     // we just update its content instead of doing a disruptive full re-render.
     if (EditorManager.activeEditor && EditorManager.activeEditorInfo?.slideIndex === payload.slideIndex && payload.cell) {
+        const cellContainerDiv = EditorManager.activeEditorInfo.cellContainer.closest('.cell') as HTMLDivElement | null;
+        if (!cellContainerDiv) { return; }
+
+        console.log(`[PreviewScript] renderSlide: Performing non-destructive update for slide ${payload.slideIndex}`);
+
+        // --- 1. Update Editor Source (if needed) ---
         const newSource = sourceToString(payload.cell.source);
         const editorModel = EditorManager.activeEditor.getModel();
-
-        // Only update if the content is actually different, to avoid moving the cursor needlessly.
         if (editorModel && editorModel.getValue() !== newSource) {
-            console.log(`[PreviewScript] renderSlide: Applying non-destructive update to active editor for slide ${payload.slideIndex}`);
-            
-            // Push an edit to the model. This is better than `setValue` because it
-            // allows Monaco to create a proper undo/redo step within its own buffer.
+            console.log(`[PreviewScript] Applying non-destructive update to active editor's source.`);
             const fullRange = editorModel.getFullModelRange();
-            editorModel.pushEditOperations(
-                [], // Previous selections
-                [{ range: fullRange, text: newSource }],
-                () => null // New selections
-            );
-
-            // After programmatically changing the content, we must also update
-            // our 'initialSource' baseline to prevent thinking this is a new user edit.
+            editorModel.pushEditOperations([], [{ range: fullRange, text: newSource }], () => null);
             EditorManager.activeEditorInfo.initialSource = newSource;
         }
 
+        // --- 2. Re-bind Toolbar Listeners (if needed) ---
+        const oldToolbar = cellContainerDiv.querySelector('.cell-toolbar');
+        if (oldToolbar) {
+            const newToolbar = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
+            oldToolbar.replaceWith(newToolbar);
+        }
 
-        // The editor is updated, but the toolbar's event listeners are still stale.
-        // We must rebuild the toolbar to give it fresh closures with the new payload data.
-        const cellContainerDiv = EditorManager.activeEditorInfo.cellContainer.closest('.cell') as HTMLDivElement | null;
-        if (cellContainerDiv) {
-            const oldToolbar = cellContainerDiv.querySelector('.cell-toolbar');
-            if (oldToolbar) {
-                console.log('[PreviewScript] Re-binding toolbar listeners with fresh cell data.');
-                const newToolbar = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
-                oldToolbar.replaceWith(newToolbar);
+        // --- 3. Render Outputs ---
+        if (payload.cell.cell_type === 'code') {
+            const codeCell = payload.cell as CodeCell;
+            const cellBody = cellContainerDiv.querySelector('.code-cell-body');
+
+            if (cellBody) {
+                // Find or create the output wrapper
+                let outputWrapperDiv = cellBody.querySelector('.cell-output-wrapper') as HTMLDivElement;
+                if (!outputWrapperDiv) {
+                    outputWrapperDiv = document.createElement('div');
+                    outputWrapperDiv.className = 'cell-output-wrapper';
+                    cellBody.appendChild(outputWrapperDiv);
+                }
+
+                // Find or create the actual output container
+                let outputDiv = outputWrapperDiv.querySelector('.code-output') as HTMLDivElement;
+                if (!outputDiv) {
+                    outputDiv = document.createElement('div');
+                    outputDiv.className = 'code-output';
+                    outputWrapperDiv.appendChild(outputDiv);
+                }
+
+                // Always clear previous outputs before rendering new ones
+                outputDiv.innerHTML = '';
+
+                if (codeCell.outputs && codeCell.outputs.length > 0) {
+                    console.log(`[PreviewScript] Rendering ${codeCell.outputs.length} new outputs.`);
+                    codeCell.outputs.forEach((output: any) => renderOutput(output, outputDiv));
+                } else {
+                     console.log('[PreviewScript] No outputs to render or outputs are empty.');
+                }
             }
         }
 
-        // IMPORTANT: After this non-destructive update, we stop. We do not proceed
-        // to the full re-render logic below.
+        // After this non-destructive update, we stop.
         return;
     }
 

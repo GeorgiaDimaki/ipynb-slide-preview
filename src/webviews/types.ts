@@ -5,11 +5,11 @@ export interface VsCodeApi {
 // MESSAGES
 
 // Messages from Extension to Webview
-export interface UpdateSlideMessage {
-    type: 'updateSlide';
+export interface UpdateMessage {
+    type: 'update';
     payload: SlidePayload;
 }
-export type MessageFromExtension = UpdateSlideMessage;
+export type MessageFromExtension = UpdateMessage;
 
 // Messages from Webview to Extension
 export interface GlobalUndoMessage { type: 'requestGlobalUndo' }
@@ -18,6 +18,7 @@ export interface CellContentChangedMessage { type: 'cellContentChanged'; payload
 export interface ReadyMessage { type: 'ready'; }
 export interface PreviousMessage { type: 'previous'; }
 export interface NextMessage { type: 'next'; }
+export interface KernelSelectionMessage { type: 'requestKernelSelection' }
 export interface RunCellMessage { type: 'runCell'; payload: { slideIndex: number }; }
 export interface DeleteCellMessage { type: 'deleteCell'; payload: { slideIndex: number }; } // Kept for direct calls if needed, though requestDeleteConfirmation is primary
 export interface RequestDeleteConfirmationMessage { type: 'requestDeleteConfirmation'; payload: { slideIndex: number }; }
@@ -40,6 +41,7 @@ export interface AddCellAfterMessage {
 export type MessageToExtension =
       AddCellBeforeMessage
     | AddCellAfterMessage
+    | KernelSelectionMessage
     | ReadyMessage
     | GlobalRedoMessage
     | GlobalUndoMessage
@@ -77,6 +79,7 @@ export interface SlidePayload {
     slideIndex: number;
     totalSlides: number;
     notebookLanguage: string;
+    controllerName: string;
 }
 
 

@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 type Source = string | string[];
 
 // Define specific output types based on nbformat
-interface StreamOutput {
+export interface StreamOutput {
     output_type: 'stream';
     name: 'stdout' | 'stderr';
     text: Source;
@@ -16,20 +16,20 @@ interface DataBundle {
     [mimeType: string]: Source; // e.g., 'text/plain', 'text/html', 'image/png'
 }
 
-interface DisplayDataOutput {
+export interface DisplayDataOutput {
     output_type: 'display_data';
     data: DataBundle;
     metadata?: Record<string, any>;
 }
 
-interface ExecuteResultOutput {
+export interface ExecuteResultOutput {
     output_type: 'execute_result';
     execution_count: number | null;
     data: DataBundle;
     metadata?: Record<string, any>;
 }
 
-interface ErrorOutput {
+export interface ErrorOutput {
     output_type: 'error';
     ename: string; // Error name
     evalue: string; // Error value
@@ -37,10 +37,10 @@ interface ErrorOutput {
 }
 
 // Union type for any possible output item
-type NotebookOutput = StreamOutput | DisplayDataOutput | ExecuteResultOutput | ErrorOutput;
+export type NotebookOutput = StreamOutput | DisplayDataOutput | ExecuteResultOutput | ErrorOutput;
 
 // Define the structure for a single cell
-interface IpynbCell {
+export interface IpynbCell {
     cell_type: 'markdown' | 'code';
     source: Source;
     outputs?: NotebookOutput[]; // Use the detailed NotebookOutput type
@@ -48,7 +48,7 @@ interface IpynbCell {
 }
 
 // Define the structure for the entire parsed notebook
-interface IpynbData {
+export interface IpynbData {
     cells: IpynbCell[];
     metadata: Record<string, any>;
     nbformat: number;
@@ -88,6 +88,10 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
             console.error(`[IpynbSlideDocument] Error parsing IPYNB file content for ${uri.fsPath}:`, e);
             this._documentData = { cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 };
         }
+    }
+
+    public getNotebookData(): IpynbData {
+        return this._documentData;
     }
 
     public setContentChangeListener(listener: vscode.Disposable): void {
@@ -208,34 +212,6 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
                 console.log(`[IpynbSlideDocument] After REDO Insert, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             }
         });
-    }
-    public runCell(index: number): void {
-        if (index < 0 || index >= this.cells.length) {
-            console.warn(`[IpynbSlideDocument] runCell: Invalid index ${index}. Total cells: ${this.cells.length}`);
-            return;
-        }
-
-        const cell = this._documentData.cells[index];
-        if (cell.cell_type === 'code') {
-            const sourceCode = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
-            console.log(`[IpynbSlideDocument] Request to run cell ${index}:`, sourceCode.substring(0, 100) + (sourceCode.length > 100 ? "..." : ""));
-
-            // TODO: Implement actual code execution logic with VS Code Kernel APIs.
-            const dummyOutput: StreamOutput = { // Correctly typed as StreamOutput
-                output_type: 'stream',
-                name: 'stdout',
-                text: [`[Simulated output for cell ${index + 1} at ${new Date().toLocaleTimeString()}]`]
-            };
-
-            if (!cell.outputs) {
-                cell.outputs = [];
-            }
-            cell.outputs.push(dummyOutput);
-
-            this._onDidChangeContent.fire();
-        } else {
-            console.log(`[IpynbSlideDocument] runCell: Cell ${index} is a ${cell.cell_type} cell, not a code cell.`);
-        }
     }
 
     public deleteCell(index: number): void {
@@ -455,7 +431,7 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     
         // Update the document data
         cell.source = newSourceArray;
-        
+
         // Notify listeners (like the provider) that the document's content has changed.
         // This will trigger the webview to be updated with the new data.
         this._onDidChangeContent.fire();
@@ -483,6 +459,26 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         });
     }
 
+    public updateCellOutputs(index: number, outputs: NotebookOutput[]): void {
+        if (index < 0 || index >= this.cells.length) {
+            console.warn(`[IpynbSlideDocument] updateCellOutputs: Invalid index ${index}.`);
+            return;
+        }
+
+        const cell = this._documentData.cells[index];
+        if (!cell) {
+            console.warn(`[IpynbSlideDocument] updateCellOutputs: No cell found at index ${index}.`);
+            return;
+        }
+
+        // Replace the old outputs with the new ones returned from the kernel.
+        cell.outputs = outputs;
+
+        // Fire the content change event. This is crucial as it tells the
+        // IpynbSlideProvider to send the updated data to the webview,
+        // which will then re-render the slide to show the new output.
+        this._onDidChangeContent.fire();
+    }
     async backup(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         console.log(`[IpynbSlideDocument] Backup operation invoked for ${destination.fsPath}.`);
         try {

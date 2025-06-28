@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { IpynbSlideDocument } from './ipynbSlideDocument';
 import { getNonce } from './util';
+import { DocumentManager } from './documentManager';
+import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrategy';
+
 
 const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
 
@@ -14,6 +17,9 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
     private readonly documentEditListeners = new Map<string, vscode.Disposable>();
 
     private readonly documentWebviews = new Map<string, Set<vscode.WebviewPanel>>();
+
+    private readonly documentManagers = new WeakMap<IpynbSlideDocument, DocumentManager>();
+
 
     constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -41,6 +47,12 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const backupUri = openContext.backupId ? vscode.Uri.parse(openContext.backupId) : uri;
         const fileData: Uint8Array = await vscode.workspace.fs.readFile(backupUri);
         const document = new IpynbSlideDocument(uri, fileData);
+
+        const strategy = new BackgroundNotebookProxyStrategy(document.uri,  document.getNotebookData());
+        // Pass the document along with the strategy
+        const docManager = new DocumentManager(document, strategy);
+        await docManager.initialize();
+        this.documentManagers.set(document, docManager);
 
         // Restore slide index early, before listeners are attached that might depend on it
         const workspaceStateKey = `${WORKSPACE_STATE_PREFIX}${document.uri.toString()}`;
@@ -120,7 +132,8 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                     break;
                 case 'runCell':
                     if (message.payload && typeof message.payload.slideIndex === 'number') {
-                        document.runCell(message.payload.slideIndex);
+                        const docManager = this.documentManagers.get(document);
+                        docManager?.runCell(message.payload.slideIndex);
                     } else {
                         console.warn('[Provider] Invalid payload for runCell message:', message.payload);
                     }
@@ -201,11 +214,20 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             webviewSet?.delete(webviewPanel);
             if (webviewSet?.size === 0) {
                 this.documentWebviews.delete(uriString);
+
+                const documentManager = this.documentManagers.get(document);
+                if (documentManager) {
+                    console.log(`[Provider] Disposing NotebookManager for document: ${document.uri.fsPath}`);
+                    documentManager.dispose();
+                    this.documentManagers.delete(document);
+                }
+
                 console.log(`[Provider] Disposing edit listener for document: ${uriString}`);
                 this.documentEditListeners.get(uriString)?.dispose();
                 this.documentEditListeners.delete(uriString);        
             }
         });
+
     }
 
     private updateAllWebviewsForDocument(document: IpynbSlideDocument): void {
@@ -218,14 +240,18 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const notebookMetadata = document.getNotebookMetadata();
         const notebookLanguage = (notebookMetadata?.language_info?.name || notebookMetadata?.kernelspec?.language || 'plaintext').toLowerCase();
 
+        const manager = this.documentManagers.get(document);
+        const controllerName = 'Select Kernel';
+    
         console.log(`[Provider] Sending slide ${document.currentSlideIndex} to webview for ${document.uri.fsPath}. Lang: ${notebookLanguage}`);
         webviewPanel.webview.postMessage({
-            type: 'updateSlide',
+            type: 'update',
             payload: {
                 slideIndex: document.currentSlideIndex,
                 totalSlides: document.cells.length,
                 cell: currentSlideData,
-                notebookLanguage: notebookLanguage
+                notebookLanguage: notebookLanguage,
+                controllerName: controllerName
             }
         });
     }
@@ -260,6 +286,17 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
+            <div id="main-toolbar">
+                <div class="toolbar-actions-left">
+                    </div>
+                <div class="toolbar-spacer"></div>
+                <div class="toolbar-actions-right">
+                    <div id="kernel-status-container">
+                        <span id="kernel-indicator-icon"></span>
+                        <span id="kernel-indicator-name">Not Selected</span>
+                    </div>
+                </div>
+            </div>
             <div id="main-view-wrapper">
                 <div id="add-slide-left-container" class="side-add-slide-container">
                     <button id="add-slide-left-button" class="side-add-button" title="Add slide before current">+</button>

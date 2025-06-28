@@ -1,0 +1,36 @@
+/* --- Main Top Toolbar --- */
+#main-toolbar {
+    display: flex;
+    align-items: center;
+    height: 35px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border, #454545);
+    background-color: var(--vscode-editor-background);
+    flex-shrink: 0; /* Prevent the toolbar from shrinking */
+}
+
+.toolbar-spacer {
+    flex-grow: 1;
+}
+
+#kernel-status-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: transparent;
+    transition: background-color 0.2s;
+}
+
+#kernel-status-container:hover {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+#kernel-indicator-name {
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-descriptionForeground);
+}
+
+/* More styles will be added later for different kernel states */
