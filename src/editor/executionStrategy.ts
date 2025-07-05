@@ -4,6 +4,10 @@ import { IpynbCell, NotebookOutput } from './ipynbSlideDocument';
  * Defines the contract for any class that can execute notebook cells.
  */
 export interface IKernelExecutionStrategy extends vscode.Disposable {
+
+
+    readonly onKernelChanged?: vscode.Event<void>;
+
     /**
      * Initializes the strategy.
      */

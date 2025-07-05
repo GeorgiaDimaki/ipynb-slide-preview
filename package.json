@@ -5,6 +5,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "extensionDependencies": [
+    "ms-python.python"
+  ],
   "contributes": {
     "customEditors": [
       {

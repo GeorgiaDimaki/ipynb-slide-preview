@@ -3,9 +3,15 @@ import { IpynbSlideDocument } from './ipynbSlideDocument';
 import { getNonce } from './util';
 import { DocumentManager } from './documentManager';
 import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrategy';
+import { ISpecModel } from '@jupyterlab/services/lib/kernelspec/restapi';
 
 
 const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
+const PYTHON_PATH_KEY_PREFIX = 'ipynbSlidePreview.pythonPath:';
+
+interface KernelQuickPickItem extends vscode.QuickPickItem {
+    kernelName: string; // The internal kernel name, e.g., 'python3'
+}
 
 export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlideDocument> {
 
@@ -48,11 +54,32 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const fileData: Uint8Array = await vscode.workspace.fs.readFile(backupUri);
         const document = new IpynbSlideDocument(uri, fileData);
 
-        const strategy = new BackgroundNotebookProxyStrategy(document.uri,  document.getNotebookData());
+        // 1. Get the key for this specific document's saved Python path.
+        const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
+
+        // 2. Retrieve the saved path from workspace state. It might be undefined.
+        const savedPythonPath = this.context.workspaceState.get<string>(pythonPathKey);
+        console.log(`[Provider] Found saved Python path for this document: ${savedPythonPath}`);
+
+        const strategy = new BackgroundNotebookProxyStrategy(document.uri,  document.getNotebookData(), savedPythonPath);
         // Pass the document along with the strategy
         const docManager = new DocumentManager(document, strategy);
-        await docManager.initialize();
+
+        try {
+            // We still attempt to initialize automatically...
+            await docManager.initialize();
+        } catch (e) {
+            // ...but if it fails, we catch the error and log it.
+            // We DON'T re-throw it. This allows the editor to open.
+            // The user has already been shown a specific error message by the strategy.
+            console.error(`[Provider] Initial kernel startup failed. The user can select a kernel manually.`, e);
+        }
+
         this.documentManagers.set(document, docManager);
+        docManager.onKernelChanged(() => {
+            console.log('[Provider] Kernel change detected from strategy. Updating webviews.');
+            this.updateAllWebviewsForDocument(document);
+        });
 
         // Restore slide index early, before listeners are attached that might depend on it
         const workspaceStateKey = `${WORKSPACE_STATE_PREFIX}${document.uri.toString()}`;
@@ -203,6 +230,75 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                     console.log('[Provider] Received requestGlobalRedo from webview.');
                     vscode.commands.executeCommand('redo');
                     break;
+                case 'requestKernelSelection': {
+                    const docManager = this.documentManagers.get(document);
+                    if (!docManager || !docManager.isStrategyInitialized()) {
+                        vscode.window.showWarningMessage("Kernel is not yet available. Please wait for startup to complete or check for errors.");
+                        break;
+                    }
+
+                    const specs = docManager.getAvailableKernelSpecs();
+                    const currentKernelDisplayName = docManager.getActiveKernelDisplayName();
+
+                    // Define the item that lets the user switch to a new Python environment
+                    const selectAnotherKernelItem: vscode.QuickPickItem = {
+                        label: `$(python-icon) Select Another Kernel...`,
+                        description: "Choose a different Python environment to start the server",
+                        alwaysShow: true
+                    };
+
+                    // Create the list of available kernels from the current server
+                    const kernelItems: KernelQuickPickItem[] = specs?.kernelspecs ? Object.values(specs.kernelspecs).map(spec => {
+                        const sp = spec?.spec as ISpecModel  | undefined
+                        return {
+                            label: `$(notebook-kernel-icon) ${(sp && sp.display_name) || 'Unnamed Kernel'}`,
+                            description: (sp?.display_name === currentKernelDisplayName) ? " (Currently Active)" : "",
+                            kernelName: spec!.name
+                        }
+                    }) : [];
+
+                    // Show the Quick Pick menu with all options
+                    vscode.window.showQuickPick( [ 
+                        ...kernelItems, 
+                        { label: '', kind: vscode.QuickPickItemKind.Separator }, // This line is now fixed
+                        selectAnotherKernelItem 
+                    ], 
+                    {
+                        placeHolder: "Select a kernel or Python environment",
+                        matchOnDescription: true
+                    }).then(selected => {
+                        if (!selected) {
+                            console.log('[Provider] Kernel selection cancelled.');
+                            return;
+                        }
+
+                        // Case 1: The user selected the "Select Another Kernel..." option
+                        if (selected.label === selectAnotherKernelItem.label) {
+                            this.selectAndRestartKernel(document);
+
+                        // Case 2: The user selected an existing kernel from the list
+                        } else if ((selected as KernelQuickPickItem).kernelName) {
+                            const selectedKernel = selected as KernelQuickPickItem;
+                            if (selectedKernel.description?.indexOf('(Currently Active)') === -1) {
+                                // Switch the kernel session without restarting the server
+                                vscode.window.withProgress({
+                                    location: vscode.ProgressLocation.Notification,
+                                    title: `Switching to kernel: ${selectedKernel.label}`,
+                                    cancellable: false
+                                }, async () => {
+                                    try {
+                                        await docManager.switchKernelSession(selectedKernel.kernelName);
+                                        //this.updateAllWebviewsForDocument(document);
+                                    } catch (err: any) {
+                                        vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
+                                    }
+                                });
+                            }
+                        }
+                    });
+
+                    break;
+                }
                 default:
                     console.warn('[Provider] Received unknown message type from webview:', message.type);
             }
@@ -241,7 +337,10 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const notebookLanguage = (notebookMetadata?.language_info?.name || notebookMetadata?.kernelspec?.language || 'plaintext').toLowerCase();
 
         const manager = this.documentManagers.get(document);
-        const controllerName = 'Select Kernel';
+        // Get the kernel name from the manager, or use a default if not running.
+        const controllerName = manager?.getActiveKernelDisplayName() || 'Select Kernel';
+        console.log(`[Provider] Updating webview. Sending controllerName: '${controllerName}'`);
+
     
         console.log(`[Provider] Sending slide ${document.currentSlideIndex} to webview for ${document.uri.fsPath}. Lang: ${notebookLanguage}`);
         webviewPanel.webview.postMessage({
@@ -321,6 +420,46 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             </html>
         `;
     }
+    private async selectAndRestartKernel(document: IpynbSlideDocument): Promise<void> {
+        // Use the official command to show the interpreter selection UI
+        await vscode.commands.executeCommand('python.setInterpreter');
+
+        // Check which path the user selected
+        const newPythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', document.uri);
+
+        // The user might have cancelled the selection
+        if (!newPythonPath) {
+            console.log('[Provider] Interpreter selection was cancelled.');
+            return;
+        }
+
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Restarting Jupyter server with new environment...",
+            cancellable: false
+        }, async () => {
+            // Get the current document manager and dispose of it, which will shut down the old server
+            const oldDocManager = this.documentManagers.get(document);
+            if (oldDocManager) {
+                oldDocManager.dispose();
+            }
+
+            // Create a new strategy and a new document manager with the new Python path
+            const newStrategy = new BackgroundNotebookProxyStrategy(document.uri, document.getNotebookData(), newPythonPath);
+            const newDocManager = new DocumentManager(document, newStrategy);
+            this.documentManagers.set(document, newDocManager);
+
+            try {
+                // Initialize the new manager and update the UI
+                await newDocManager.initialize();
+                this.updateAllWebviewsForDocument(document);
+                vscode.window.showInformationMessage(`Successfully started server with ${newDocManager.getActiveKernelDisplayName()}`);
+            } catch (e: any) {
+                vscode.window.showErrorMessage(`Failed to start server with new environment: ${e.message}`);
+                console.error(`[Provider] Error re-initializing with new environment:`, e);
+            }
+        });
+    }
 
     async saveCustomDocument(document: IpynbSlideDocument, cancellation: vscode.CancellationToken): Promise<void> {
         await document.save(cancellation);
@@ -336,5 +475,29 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
     async backupCustomDocument(document: IpynbSlideDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         return await document.backup(context.destination, cancellation);
+    }
+
+    private async selectInterpreterPath(documentUri: vscode.Uri): Promise<string | undefined> {
+        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+        if (!pythonExtension) {
+            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed.');
+            return undefined;
+        }
+        if (!pythonExtension.isActive) {
+            await pythonExtension.activate();
+        }
+
+        await vscode.commands.executeCommand('python.setInterpreter');
+
+        // Pass the documentUri argument here
+        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', documentUri);
+
+        if (pythonPath) {
+            console.log(`[Provider] User selected/confirmed Python interpreter at: ${pythonPath}`);
+            return pythonPath;
+        }
+        
+        console.log('[Provider] Interpreter selection was cancelled or no path was returned.');
+        return undefined;
     }
 }

@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -17,15 +16,18 @@ if (typeof (globalThis as any).fetch !== 'function') {
 
 import { IKernelExecutionStrategy } from './executionStrategy';
 import { IpynbCell, NotebookOutput, StreamOutput, ExecuteResultOutput, ErrorOutput, DisplayDataOutput } from './ipynbSlideDocument';
-import { ServerConnection, SessionManager, KernelManager } from '@jupyterlab/services';
+import { ServerConnection, SessionManager, KernelManager, KernelSpecManager } from '@jupyterlab/services';
 import { Session } from '@jupyterlab/services/lib/session';
 import { KernelMessage } from '@jupyterlab/services/lib/kernel';
+import { ISpecModel, ISpecModels } from '@jupyterlab/services/lib/kernelspec/restapi';
 
 /**
  * Implements the kernel execution strategy by launching and managing a
  * background Jupyter server process.
  */
 export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy {
+    public isInitialized = false;
+    
     // --- PRIVATE PROPERTIES ---
 
     /**
@@ -48,11 +50,22 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      */
     private _sessionConnection: Session.ISessionConnection | undefined;
 
+    /**
+     * Holds the specifications for all available Jupyter kernels.
+     */
+    private _availableKernelSpecs: ISpecModels | undefined | null;
+
+
+    private readonly _onKernelChanged = new vscode.EventEmitter<void>();
+    public readonly onKernelChanged = this._onKernelChanged.event;
+    
+    
     // --- CONSTRUCTOR ---
 
     constructor(
         private readonly documentUri: vscode.Uri,
-        private readonly documentData: any
+        private readonly documentData: any,
+        private initialPythonPath: string | undefined
     ) {}
 
     // --- PUBLIC METHODS (from IKernelExecutionStrategy) ---
@@ -61,59 +74,129 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      * Starts the Jupyter server and establishes a kernel session for the notebook.
      */
     public async initialize(): Promise<void> {
-        console.log('[ProxyStrategy] Initializing...');
-        try {
-            const settings = await this.startJupyterServer();
-            console.log('[ProxyStrategy] Jupyter server connection settings obtained.');
+        console.log('[ProxyStrategy] Initializing automatically with saved Python path.');
+        // We'll create a new method for the core logic to avoid duplication
+        await this.startServerAndSession();
+    }
+    
+    private findKernelMatchingEnvironment(pythonPath: string): string | undefined {
+        console.log(this._availableKernelSpecs)
+        if (!this._availableKernelSpecs?.kernelspecs) {
+            return undefined;
+        }
+        // Look through all available kernels
+        for (const key in this._availableKernelSpecs.kernelspecs) {
+            
+            const spec = this._availableKernelSpecs.kernelspecs[key];
+            const actualspce = spec?.spec as ISpecModel
+            console.log(spec)
+            // Check if the kernel's executable path matches the server's pythonPath
+            if (actualspce?.argv[0] === pythonPath) {
+                console.log(`[ProxyStrategy] Found matching kernel spec: ${spec?.name} for python ${pythonPath}`);
+                return spec?.name; // Return the kernel's internal name (e.g., 'anaconda-kernel')
+            }
+        }
+        console.warn(`[ProxyStrategy] Could not find a kernel spec matching the python path: ${pythonPath}`);
+        return undefined; // Return undefined if no direct match is found
+    }
 
-            this._kernelManager = new KernelManager({
-                serverSettings: settings,
-            });
+    public async startServerAndSession(): Promise<void> {
+        // Clean up any old server process before starting a new one.
+        if (this._serverProcess) {
+            console.log('[ProxyStrategy] Killing existing server process before starting a new one.');
+            this._serverProcess.kill();
+            this._serverProcess = undefined;
+        }
+
+        try {
+
+            const pythonPath = await this.findActiveInterpreterPath();
+            if (!pythonPath) {
+                // If no active interpreter is found at all, we must stop.
+                throw new Error("No active Python interpreter found. Please select an interpreter in VS Code.");
+            }
+
+            // Pass the selected pythonPath to the server starter
+            const settings = await this.startJupyterServer(pythonPath);
+            console.log('[ProxyStrategy] Jupyter server connection settings obtained.');
+            
+            // const specManager = new KernelSpecManager({ serverSettings: settings });
+            // await specManager.ready;
+            // this._availableKernelSpecs = specManager.specs;
+            // console.log('[ProxyStrategy] Available kernel specs fetched:', this._availableKernelSpecs?.kernelspecs);
+            // if (!this._availableKernelSpecs || Object.keys(this._availableKernelSpecs.kernelspecs).length === 0) {
+            //     throw new Error("The selected Python environment started a Jupyter server, but the server found no usable kernels. Please check your installation.");
+            // }
+
+            console.log('[ProxyStrategy] Fetching kernel specs directly via REST API...');
+
+            // Manually construct the URL for the REST API endpoint
+            const url = `${settings.baseUrl}api/kernelspecs`;
+            console.log(url)
+            try {
+                // Use the global fetch to make the API call with the required authorization token
+                const response = await (globalThis as any).fetch(url, {
+                    headers: { 'Authorization': `token ${settings.token}` }
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to fetch kernel specs directly. Status: ${response.status}, Body: ${errorText}`);
+                }
+
+                // Parse the JSON response from the server
+                const specs = await response.json();
+                this._availableKernelSpecs = specs as ISpecModels;
+
+                console.log('[ProxyStrategy] Direct fetch response:', JSON.stringify(specs, null, 2));
+
+                if (!this._availableKernelSpecs || !this._availableKernelSpecs.kernelspecs || Object.keys(this._availableKernelSpecs.kernelspecs).length === 0) {
+                    throw new Error("The Jupyter server was contacted successfully, but it reported an empty list of available kernels.");
+                }
+            } catch (error) {
+                console.error('[ProxyStrategy] Direct fetch for kernel specs failed:', error);
+                throw error; // Re-throw to be caught by the outer try/catch
+            }
+
+            this._kernelManager = new KernelManager({ serverSettings: settings });
             this._sessionManager = new SessionManager({
                 kernelManager: this._kernelManager,
                 serverSettings: settings
             });
-
-            let sessionPath: string;
-            let sessionName: string;
-
-            if (this.documentUri.scheme === 'untitled') {
-                sessionName = path.basename(this.documentUri.path);
-                sessionPath = sessionName;
-            } else {
-                sessionPath = this.documentUri.fsPath;
-                sessionName = path.basename(sessionPath);
-            }
-
-            console.log(`[ProxyStrategy] Creating session with name '${sessionName}' and path '${sessionPath}'`);
+            
+            const matchingKernelName = this.findKernelMatchingEnvironment(pythonPath);
+            const kernelToStart = matchingKernelName || this._availableKernelSpecs?.default || 'python3';
+            console.log(`[ProxyStrategy] Will start session with kernel: '${kernelToStart}'.`);
 
             const sessionOptions: Session.ISessionOptions = {
-                path: sessionPath,
+                path: this.documentUri.fsPath,
                 type: 'notebook',
-                name: sessionName,
-                kernel: { name: 'python3' }
+                name: path.basename(this.documentUri.fsPath),
+                kernel: { name: kernelToStart }
             };
             
-            // Bypass startNew and create the session with a direct API call.
-            console.log('[ProxyStrategy] Creating session directly via API call...');
+            console.log(`[ProxyStrategy] Creating session...`);
             const sessionModel = await this.createSessionDirectly(settings, sessionOptions);
 
-            console.log(`[ProxyStrategy] Session created with ID: ${sessionModel.id}. Connecting...`);
-            // Connect to the session we just created.
             this._sessionConnection = this._sessionManager.connectTo({ model: sessionModel });
-            
+            this._sessionConnection.kernelChanged.connect(() => this._onKernelChanged.fire());
+
             if (this._sessionConnection?.kernel) {
-                console.log(`[ProxyStrategy] Kernel session started successfully: ${this._sessionConnection.kernel.name}`);
-                vscode.window.setStatusBarMessage(`Kernel Connected: ${this._sessionConnection.kernel.name}`, 5000);
+                const kernelName = this._sessionConnection.kernel.name;
+                console.log(`[ProxyStrategy] Kernel session started successfully: ${kernelName}`);
+                vscode.window.setStatusBarMessage(`Kernel Connected: ${kernelName}`, 5000);
+                this.isInitialized = true;
             } else {
                 throw new Error("Failed to connect to the kernel session after creating it.");
             }
-
         } catch (error: any) {
             console.error('[ProxyStrategy] Initialization failed:', error);
             vscode.window.showErrorMessage(`Failed to start Jupyter session. Error: ${error.message || error}`);
+            // We need to re-throw or handle this to notify the provider
+            throw error;
         }
     }
+
 
     /**
      * Sends code from a cell to the active kernel for execution.
@@ -185,13 +268,13 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
     public dispose(): void {
         console.log('[ProxyStrategy] Disposing and shutting down session and server.');
         // Asynchronously shut down the session without waiting
-        this._sessionConnection?.shutdown().catch(e => console.error("Error during session shutdown:", e));
+        //this._sessionConnection?.shutdown().catch(e => console.error("Error during session shutdown:", e));
         
         this._sessionManager?.dispose();
         this._kernelManager?.dispose();
         
         // Kill the server process
-        this._serverProcess?.kill();
+        this._serverProcess?.kill('SIGINT');
         console.log('[ProxyStrategy] Dispose complete.');
     }
 
@@ -202,16 +285,36 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      * then polls it until it's ready to accept connections.
      * @returns A promise that resolves with the server connection settings.
      */
-    private startJupyterServer(): Promise<ServerConnection.ISettings> {
+    private startJupyterServer(pythonPath: string): Promise<ServerConnection.ISettings> {
         return new Promise(async (resolve, reject) => {
             const port = 8989; // Use a fixed, predictable port to avoid ambiguity.
             const token = 'c8deb952f41e46e2a22d708358406560'; // Use a fixed token.
             const baseUrl = `http://localhost:${port}`;
 
             try {
-                const command = await this.findJupyterExecutable();
-                // Command the server to use our specific port and token, and disable password auth.
+                
+                if (!pythonPath) {
+                    return reject(new Error("No Python path provided to startJupyterServer."));
+                }
+
+                const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+                if (!pythonExtension) { throw new Error('Python extension not found'); }
+                if (!pythonExtension.isActive) { await pythonExtension.activate(); }
+                const pythonApi = pythonExtension.exports;
+
+                const environment = await pythonApi.environments.resolveEnvironment(pythonPath);
+                if (!environment) { throw new Error(`Could not resolve environment for ${pythonPath}`); }
+                const processEnv = {
+                    ...process.env, // Inherit the main process environment (including HOME)
+                    ...environment.env // Let the Python-specific variables override if needed
+                };
+                console.log(`[ProxyStrategy] Inheriting parent process environment. HOME is: ${processEnv.HOME}`);
+                console.log('[ProxyStrategy] Resolved environment variables for spawn.');
+                
+                const command = pythonPath;
                 const args = [
+                    '-m', // Execute as a module
+                    'jupyter',
                     'server',
                     '--no-browser',
                     `--port=${port}`,
@@ -219,7 +322,11 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                     `--ServerApp.password=''`
                 ];
 
-                this._serverProcess = cp.spawn(command, args, { shell: true, detached: true });
+                this._serverProcess = cp.spawn(command, args, { 
+                    shell: false, 
+                    detached: true,
+                    env: processEnv
+                });
 
                 this._serverProcess.on('error', (err) => {
                     reject(err);
@@ -227,7 +334,17 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                 
                 // Log server output for debugging, just in case.
                 this._serverProcess.stderr?.on('data', (data: Buffer) => {
-                     console.log(`[JupyterServer stderr]: ${data.toString()}`);
+                    const errorOutput = data.toString();
+                    console.log(`[JupyterServer stderr]: ${errorOutput}`);
+                    if (errorOutput.includes('No module named jupyter')) {
+                        // If we see this, we know exactly what's wrong.
+                        // We can kill the process and reject the promise immediately
+                        // with a user-friendly message.
+                        this._serverProcess?.kill();
+                        reject(new Error(
+                            'The selected Python environment is missing the `jupyter` package. Please install it or select a different environment.'
+                        ));
+                    }
                 });
 
                 // Poll the server's status endpoint until it's ready.
@@ -252,11 +369,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                             const settings = ServerConnection.makeSettings({
                                 baseUrl: baseUrl,
                                 token: token,
-                                // ==================== START OF CHANGE ====================
-                                // Set to true to allow the library to append the token to
-                                // WebSocket URLs, which is required for authentication.
                                 appendToken: true,
-                                // ===================== END OF CHANGE =====================
                                 fetch: fetch as any
                             });
                             resolve(settings);
@@ -307,7 +420,98 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         }
         return await response.json();
     }
+    public async switchKernelSession(newKernelName: string): Promise<void> {
+        if (!this._sessionConnection) {
+            throw new Error("Cannot switch kernel, there is no active session.");
+        }
+        
+        console.log(`[ProxyStrategy] Patching session '${this._sessionConnection.id}' to use new kernel '${newKernelName}'...`);
 
+        // Get the required info for the API call
+        const oldConnection = this._sessionConnection;
+        const sessionId = this._sessionConnection.id;
+        const port = 8989;
+        const token = 'c8deb952f41e46e2a22d708358406560';
+        const baseUrl = `http://localhost:${port}`;
+        const url = `${baseUrl}/api/sessions/${sessionId}`;
+        
+        // The payload for the PATCH request
+        const payload = { kernel: { name: newKernelName } };
+
+        try {
+            const response = await (globalThis as any).fetch(url, {
+                method: 'PATCH',
+                body: JSON.stringify(payload),
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API call to switch kernel failed. Status: ${response.status}, Body: ${errorText}`);
+            }
+
+            // The server returns the updated session model. We will use it as our source of truth.
+            const updatedSessionModel = await response.json();
+            console.log('[ProxyStrategy] Session patch successful. Received updated model.');
+
+            // 1. Create a new connection object with the updated model from the server.
+            this._sessionConnection = this._sessionManager?.connectTo({ model: updatedSessionModel });
+
+            // 2. Re-attach our event listener to the new connection object for future events.
+            this._sessionConnection?.kernelChanged.connect(() => this._onKernelChanged.fire());
+
+            // 3. Dispose of the old, stale client-side connection object.
+            oldConnection.dispose();
+
+            // 4. Manually fire our onKernelChanged event to notify the provider to update the UI.
+            this._onKernelChanged.fire();
+
+        } catch (error) {
+            console.error(`[ProxyStrategy] Failed to switch kernel via PATCH.`, error);
+            // If the switch fails, ensure we don't leave the state inconsistent by restoring the old connection.
+            this._sessionConnection = oldConnection; 
+            throw error;
+        }
+    }
+
+    public getAvailableKernelSpecs(): ISpecModels | undefined | null {
+        return this._availableKernelSpecs;
+    }
+
+    /**
+     * Prompts the user to select a Python interpreter from a list of all known environments.
+     * @returns A promise that resolves with the path string of the selected interpreter, or undefined if cancelled.
+     */
+    private async selectInterpreterPath(): Promise<string | undefined> {
+        // 1. Get the Python extension
+        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+        if (!pythonExtension) {
+            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed.');
+            return undefined;
+        }
+        if (!pythonExtension.isActive) {
+            await pythonExtension.activate();
+        }
+
+        // 2. Directly trigger the official "Select Interpreter" command from the Python extension.
+        // This will show the user the full interpreter list UI.
+        await vscode.commands.executeCommand('python.setInterpreter');
+
+        // 3. After the user has selected an interpreter from that UI, 
+        // we can now reliably ask for the path of the newly-active interpreter.
+        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', this.documentUri);
+
+        if (pythonPath) {
+            console.log(`[ProxyStrategy] User selected/confirmed Python interpreter at: ${pythonPath}`);
+            return pythonPath;
+        }
+        
+        console.log('[ProxyStrategy] Interpreter selection was cancelled or no path was returned.');
+        return undefined;
+    }
 
     /**
      * Finds the absolute path to the `jupyter` executable on the user's system.
@@ -331,4 +535,88 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
             });
         });
     }
+
+    /**
+     * Finds the path to the active Python interpreter from the VS Code Python extension.
+     * @returns A promise that resolves with the path string or undefined if not found.
+     */
+    private async findActiveInterpreterPath(): Promise<string | undefined> {
+        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+        if (!pythonExtension) {
+            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed.');
+            return undefined;
+        }
+        if (!pythonExtension.isActive) {
+            await pythonExtension.activate();
+        }
+        
+        // Ask for the path of the active interpreter for the current notebook file
+        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', this.documentUri);
+
+        if (pythonPath) {
+            console.log(`[ProxyStrategy] Found active Python interpreter at: ${pythonPath}`);
+            return pythonPath;
+        }
+        
+        return undefined;
+    }
+    
+    /**
+     * Gets the path to the active Python interpreter from the VS Code Python extension.
+     * @returns A promise that resolves with the path string or undefined.
+     */
+    private async getActiveInterpreterPath(): Promise<string | undefined> {
+        // 1. Get the Python extension
+        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+        if (!pythonExtension) {
+            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed. Please install it to run notebooks.');
+            return undefined;
+        }
+
+        // 2. Ensure the extension is activated
+        if (!pythonExtension.isActive) {
+            await pythonExtension.activate();
+        }
+
+        // 3. Get the path using the official API command
+        // The API provides interpreter paths and other details.
+        // We use the 'python.interpreterPath' command for simplicity here.
+        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', this.documentUri);
+        if (pythonPath) {
+            console.log(`[ProxyStrategy] Found active Python interpreter at: ${pythonPath}`);
+            return pythonPath;
+        } else {
+             vscode.window.showErrorMessage('No active Python interpreter is selected. Please select an interpreter to run notebooks.');
+            return undefined;
+        }
+    }
+
+    public getActiveKernelName(): string | undefined {
+        return this._sessionConnection?.kernel?.name;
+    }
+
+    public getActiveKernelDisplayName(): string | undefined {
+        // 1. Get the name of the currently running kernel (e.g., 'python3')
+        const kernelName = this.getActiveKernelName();
+        if (!kernelName || !this._availableKernelSpecs?.kernelspecs) {
+            return undefined;
+        }
+
+        // 2. Look up the full specification object for that kernel
+        //    from the list we fetched during initialization.
+        // Cast to `any` to handle the raw server response structure
+        const kernelInfo: any = this._availableKernelSpecs.kernelspecs[kernelName];
+        
+        // 3. Return the user-friendly display_name (e.g., 'Python 3.10')
+        
+        // Access the *nested* display_name property
+        if (kernelInfo?.spec?.display_name) {
+            return kernelInfo.spec.display_name;
+        }
+
+        // Fallback to the internal kernel name if display_name isn't available
+        return kernelName;
+    }
 }
+
+
