@@ -1,10 +1,5 @@
 /* --- 5. Cell-Specific Toolbar (Run, Delete, etc.) --- */
 .cell-toolbar {
-    position: absolute; /* Positioned relative to the .cell */
-    top: 0;
-    left: 0;
-    right: 0; /* Spans full width of .cell */
-    height: 36px; /* Fixed height - MUST match .cell padding-top */
     display: flex;
     /* This aligns the top of the Run/Delete buttons */
     align-items: flex-start; 
@@ -13,6 +8,7 @@
     min-height: 60px; 
     /* padding: 0 10px; Horizontal padding for buttons */
     padding: 4px;
+    flex-shrink: 0; /* This is important: prevents the toolbar from shrinking */
     background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c); /* Toolbar distinct background */
     border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
     z-index: 10; /* Ensure it's above other cell content if it were to overlap (shouldn't with padding-top) */

@@ -8,3 +8,24 @@
     min-height: 0;       /* Essential for children to size correctly with flex-basis: 0 */
     overflow: hidden;    /* Prevent children from expanding this container */
 }
+
+/* This prevents the toolbar from shrinking if space is tight */
+.cell-toolbar {
+    flex-shrink: 0;
+}
+
+/* This makes the cell body (editor + output) a flex container
+   that grows to fill all remaining vertical space */
+.code-cell-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    /* This is a crucial fix for flex children that need to scroll */
+    min-height: 0; 
+}
+
+/* This allows the editor container itself to be flexible */
+.code-editor-container {
+    flex-grow: 1;
+    position: relative; /* Often required for Monaco's layout engine */
+}
