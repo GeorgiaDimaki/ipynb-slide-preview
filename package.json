@@ -79,12 +79,14 @@
     "@vscode/test-electron": "^2.4.1",
     "esbuild": "^0.25.3",
     "eslint": "^9.23.0",
+    "fs-extra": "^11.3.0",
     "typescript": "^5.8.2"
   },
   "dependencies": {
     "@jupyterlab/services": "^7.4.3",
     "@types/dompurify": "^3.2.0",
     "@types/node-fetch": "^2.6.12",
+    "@vscode/codicons": "^0.0.36",
     "marked": "^15.0.11",
     "monaco-editor": "^0.52.2",
     "node-fetch": "^2.7.0",

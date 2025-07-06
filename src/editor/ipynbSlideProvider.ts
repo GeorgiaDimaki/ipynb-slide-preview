@@ -371,6 +371,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview.bundle.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview.bundle.css')); 
         const monacoStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.main.css')); // If using manual Monaco CSS copy
+        const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'codicon.css'));
 
         const nonce = getNonce();
 
@@ -394,12 +395,25 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>IPYNB Slide Preview</title>
                 <link href="${styleUri}" rel="stylesheet" />
+                <link href="${codiconsUri}" rel="stylesheet" />
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
             <div id="main-toolbar">
                 <div class="toolbar-actions-left">
-                    </div>
+                    <button id="run-all-button" class="toolbar-button" title="Run All Cells">
+                        <span class="codicon codicon-run-all"></span>
+                        <span>Run All</span>
+                    </button>
+                    <button id="restart-kernel-button" class="toolbar-button" title="Restart Kernel">
+                        <span class="codicon codicon-refresh"></span>
+                        <span>Restart</span>
+                    </button>
+                    <button id="clear-outputs-button" class="toolbar-button" title="Clear All Outputs">
+                        <span class="codicon codicon-clear-all"></span>
+                        <span>Clear All Outputs</span>
+                    </button>
+                </div>
                 <div class="toolbar-spacer"></div>
                 <div class="toolbar-actions-right">
                     <div id="kernel-status-container">

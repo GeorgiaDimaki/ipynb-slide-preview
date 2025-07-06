@@ -33,4 +33,24 @@
     color: var(--vscode-descriptionForeground);
 }
 
-/* More styles will be added later for different kernel states */
+/* Styling for the new toolbar buttons */
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  padding: 4px 8px;
+  margin-right: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.toolbar-button:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.toolbar-button .codicon {
+  margin-right: 6px;
+  font-size: 16px; /* Adjust icon size as needed */
+}

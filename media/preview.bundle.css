@@ -10834,6 +10834,24 @@ body {
   font-size: var(--vscode-font-size);
   color: var(--vscode-descriptionForeground);
 }
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  padding: 4px 8px;
+  margin-right: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.toolbar-button:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+.toolbar-button .codicon {
+  margin-right: 6px;
+  font-size: 16px;
+}
 /*! Bundled license information:
 
 monaco-editor/min/vs/editor/editor.main.css:
