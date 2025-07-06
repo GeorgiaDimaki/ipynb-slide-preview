@@ -257,7 +257,7 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         runButton.onclick = () => {
             // Find the status div within our container
             const statusDiv = runContainer.querySelector('.execution-status');
-            if (!statusDiv) return;
+            if (!statusDiv) { return; }
 
             // Clear the persistent result for this slide index
             executionResults.delete(slideIndex);
@@ -369,10 +369,27 @@ function renderSlide(payload: SlidePayload): void {
                 outputDiv.innerHTML = '';
 
                 if (codeCell.outputs && codeCell.outputs.length > 0) {
-                    console.log(`[PreviewScript] Rendering ${codeCell.outputs.length} new outputs.`);
+                    // ...ensure the wrapper and output divs exist, then render into them.
+                    let ensuredWrapper = outputWrapperDiv;
+                    if (!ensuredWrapper) {
+                        ensuredWrapper = document.createElement('div');
+                        ensuredWrapper.className = 'cell-output-wrapper';
+                        cellBody.appendChild(ensuredWrapper);
+                    }
+                    let outputDiv = ensuredWrapper.querySelector('.code-output') as HTMLDivElement;
+                    if (!outputDiv) {
+                        outputDiv = document.createElement('div');
+                        outputDiv.className = 'code-output';
+                        ensuredWrapper.appendChild(outputDiv);
+                    }
+                    outputDiv.innerHTML = ''; // Clear previous before rendering new
+                    
                     codeCell.outputs.forEach((output: any) => renderOutput(output, outputDiv));
                 } else {
-                     console.log('[PreviewScript] No outputs to render or outputs are empty.');
+                    console.log('[PreviewScript] No outputs to render or outputs are empty.');
+                    if (outputWrapperDiv) {
+                        outputWrapperDiv.remove();
+                    }
                 }
             }
         }

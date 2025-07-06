@@ -249,12 +249,12 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
                     // Create the list of available kernels from the current server
                     const kernelItems: KernelQuickPickItem[] = specs?.kernelspecs ? Object.values(specs.kernelspecs).map(spec => {
-                        const sp = spec?.spec as ISpecModel  | undefined
+                        const sp = spec?.spec as ISpecModel  | undefined;
                         return {
                             label: `$(notebook-kernel-icon) ${(sp && sp.display_name) || 'Unnamed Kernel'}`,
                             description: (sp?.display_name === currentKernelDisplayName) ? " (Currently Active)" : "",
                             kernelName: spec!.name
-                        }
+                        };
                     }) : [];
 
                     // Show the Quick Pick menu with all options
