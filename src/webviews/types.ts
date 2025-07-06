@@ -80,6 +80,7 @@ export interface SlidePayload {
     totalSlides: number;
     notebookLanguage: string;
     controllerName: string;
+    executionSuccess: boolean;
 }
 
 

@@ -10481,8 +10481,9 @@ body {
   right: 0;
   height: 36px;
   display: flex;
-  align-items: center;
-  padding: 0 10px;
+  align-items: flex-start;
+  min-height: 60px;
+  padding: 4px;
   background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c);
   border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
   z-index: 10;
@@ -10523,6 +10524,48 @@ body {
 }
 .cell-action-button:active {
   background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.2)));
+}
+.run-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 8px;
+}
+.run-container .run-button {
+  margin-top: 4px;
+}
+.execution-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  opacity: 0.8;
+}
+.execution-status .spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: cell-spinner-anim 0.8s linear infinite;
+}
+.execution-status .icon {
+  margin-right: 4px;
+  font-weight: bold;
+}
+.execution-status .icon.success {
+  color: var(--vscode-testing-iconPassed);
+}
+.execution-status .icon.error {
+  color: var(--vscode-testing-iconFailed);
+}
+@keyframes cell-spinner-anim {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* media/styles/_markdown_cell.css */

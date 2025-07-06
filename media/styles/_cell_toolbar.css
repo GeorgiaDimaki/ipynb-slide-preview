@@ -6,9 +6,13 @@
     right: 0; /* Spans full width of .cell */
     height: 36px; /* Fixed height - MUST match .cell padding-top */
     display: flex;
-    
-    align-items: center; /* Vertically center buttons */
-    padding: 0 10px; /* Horizontal padding for buttons */
+    /* This aligns the top of the Run/Delete buttons */
+    align-items: flex-start; 
+    /* This gives the toolbar a consistent height across ALL slides,
+        preventing layout shift between Markdown and Code cells. */
+    min-height: 60px; 
+    /* padding: 0 10px; Horizontal padding for buttons */
+    padding: 4px;
     background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c); /* Toolbar distinct background */
     border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
     z-index: 10; /* Ensure it's above other cell content if it were to overlap (shouldn't with padding-top) */
@@ -62,3 +66,54 @@
     background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.2)));
 }
 
+/* New container for the run button and its status, lays them out vertically */
+.run-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.run-container .run-button {
+  /* Add a top margin to push it down slightly */
+  margin-top: 4px; 
+}
+
+/* The status area below the run button */
+.execution-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Reserve vertical space to prevent layout shift */
+  min-height: 22px; 
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  opacity: 0.8;
+}
+
+/* The spinner animation */
+.execution-status .spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: cell-spinner-anim 0.8s linear infinite;
+}
+
+/* Styles for the success/error icons */
+.execution-status .icon {
+  margin-right: 4px;
+  font-weight: bold;
+}
+.execution-status .icon.success {
+  color: var(--vscode-testing-iconPassed);
+}
+.execution-status .icon.error {
+  color: var(--vscode-testing-iconFailed);
+}
+
+@keyframes cell-spinner-anim {
+  to { transform: rotate(360deg); }
+}

@@ -8,4 +8,3 @@
     min-height: 0;       /* Essential for children to size correctly with flex-basis: 0 */
     overflow: hidden;    /* Prevent children from expanding this container */
 }
-

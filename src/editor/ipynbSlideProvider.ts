@@ -339,6 +339,17 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const manager = this.documentManagers.get(document);
         // Get the kernel name from the manager, or use a default if not running.
         const controllerName = manager?.getActiveKernelDisplayName() || 'Select Kernel';
+
+        // Determine if the last execution was successful by checking for error outputs.
+        // We assume success unless an error output is found.
+        let executionSuccess = true; 
+        if (currentSlideData?.outputs && currentSlideData.outputs.length > 0) {
+            // If there's any output with the type 'error', we mark it as a failure.
+            if (currentSlideData.outputs.some(output => output.output_type === 'error')) {
+                executionSuccess = false;
+            }
+        }
+        
         console.log(`[Provider] Updating webview. Sending controllerName: '${controllerName}'`);
 
     
@@ -350,7 +361,8 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 totalSlides: document.cells.length,
                 cell: currentSlideData,
                 notebookLanguage: notebookLanguage,
-                controllerName: controllerName
+                controllerName: controllerName,
+                executionSuccess: executionSuccess
             }
         });
     }
