@@ -630,3 +630,12 @@ if (contentDiv) {
 
 console.log("[PreviewScript] Sending 'ready' message to extension host.");
 vscode.postMessage({ type: 'ready' });
+
+
+const clearOutputsButton = document.getElementById('clear-outputs-button');
+if (clearOutputsButton) {
+    clearOutputsButton.addEventListener('click', () => {
+        console.log("[PreviewScript] Clear All Outputs button clicked");
+        vscode.postMessage({ type: 'clearAllOutputs' });
+    });
+}

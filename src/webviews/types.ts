@@ -12,6 +12,7 @@ export interface UpdateMessage {
 export type MessageFromExtension = UpdateMessage;
 
 // Messages from Webview to Extension
+export interface ClearOutputsMessage { type: 'clearAllOutputs' }
 export interface GlobalUndoMessage { type: 'requestGlobalUndo' }
 export interface GlobalRedoMessage { type: 'requestGlobalRedo' }
 export interface CellContentChangedMessage { type: 'cellContentChanged'; payload: {slideIndex: number; newSource: string; }; }
@@ -50,7 +51,8 @@ export type MessageToExtension =
     | RunCellMessage
     | DeleteCellMessage
     | RequestDeleteConfirmationMessage
-    | CellContentChangedMessage;
+    | CellContentChangedMessage
+    | ClearOutputsMessage;
 
 // NOTEBOOK STRUCTURE
 export type Source = string | string[];

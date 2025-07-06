@@ -299,6 +299,9 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
                     break;
                 }
+                case 'clearAllOutputs':
+                    document.clearAllOutputs();
+                    break;
                 default:
                     console.warn('[Provider] Received unknown message type from webview:', message.type);
             }

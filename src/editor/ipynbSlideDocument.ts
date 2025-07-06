@@ -45,6 +45,7 @@ export interface IpynbCell {
     source: Source;
     outputs?: NotebookOutput[]; // Use the detailed NotebookOutput type
     metadata: Record<string, any>;
+    execution_count?: number | null;
 }
 
 // Define the structure for the entire parsed notebook
@@ -212,6 +213,46 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
                 console.log(`[IpynbSlideDocument] After REDO Insert, current slide index: ${this.currentSlideIndex}, total slides: ${this.cells.length}`);
             }
         });
+    }
+
+    public clearAllOutputs(): void {
+        // Make a deep copy of the current document state for the undo action.
+        const originalDocumentData = JSON.parse(JSON.stringify(this._documentData));
+        let outputsWereCleared = false;
+
+        // Go through each cell and clear outputs if it's a code cell.
+        this._documentData.cells.forEach(cell => {
+            if (cell.cell_type === 'code' && cell.outputs && cell.outputs.length > 0) {
+                cell.outputs = [];
+                cell.execution_count = null;
+                outputsWereCleared = true;
+            }
+        });
+
+        // Only proceed if a change was actually made.
+        if (outputsWereCleared) {
+            console.log(`[IpynbSlideDocument] Cleared all outputs for ${this.uri.fsPath}`);
+
+            // Fire this event to trigger a UI update in the webview.
+            this._onDidChangeContent.fire();
+
+            // Fire this event to register the entire operation with VS Code's undo/redo stack.
+            this._onDidChangeDocument.fire({
+                document: this,
+                label: 'Clear All Outputs',
+                undo: async () => {
+                    console.log(`[IpynbSlideDocument] UNDO: Restoring all outputs.`);
+                    this._documentData = originalDocumentData;
+                    this._onDidChangeContent.fire(); // Notify webview to re-render with restored outputs.
+                },
+                redo: async () => {
+                    console.log(`[IpynbSlideDocument] REDO: Clearing all outputs again.`);
+                    this.clearAllOutputs(); // Re-running the method is a simple way to redo the action.
+                }
+            });
+        } else {
+            console.log(`[IpynbSlideDocument] No outputs to clear for ${this.uri.fsPath}`);
+        }
     }
 
     public deleteCell(index: number): void {
