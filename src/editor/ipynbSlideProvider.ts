@@ -145,8 +145,9 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
-        webviewPanel.webview.onDidReceiveMessage(message => {
+        webviewPanel.webview.onDidReceiveMessage(async (message) => {
             console.log(`[Provider] Message received from webview: ${message.type}`, message.payload ?? '');
+            const docManager = this.documentManagers.get(document);
             switch (message.type) {
                 case 'ready':
                     this.updateWebviewContent(document, webviewPanel);
@@ -157,14 +158,23 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 case 'next':
                     document.currentSlideIndex++;
                     break;
+                // ---  Toolbar Actions ---
                 case 'runCell':
+                    // It's still good practice to validate the payload from the webview
                     if (message.payload && typeof message.payload.slideIndex === 'number') {
-                        const docManager = this.documentManagers.get(document);
                         docManager?.runCell(message.payload.slideIndex);
-                    } else {
-                        console.warn('[Provider] Invalid payload for runCell message:', message.payload);
                     }
                     break;
+                case 'runAll':
+                    docManager?.runAllCells();
+                    break;
+                case 'restartKernel':
+                    docManager?.restartKernel();
+                    break;
+                case 'clearAllOutputs':
+                    docManager?.clearAllOutputs();
+                    break;
+                // ---
                 case 'deleteCell': // This might be triggered if requestDeleteConfirmation is bypassed
                     if (message.payload && typeof message.payload.slideIndex === 'number') {
                         document.deleteCell(message.payload.slideIndex);
@@ -299,9 +309,6 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
                     break;
                 }
-                case 'clearAllOutputs':
-                    document.clearAllOutputs();
-                    break;
                 default:
                     console.warn('[Provider] Received unknown message type from webview:', message.type);
             }

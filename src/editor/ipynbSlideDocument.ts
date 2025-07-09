@@ -218,21 +218,29 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     public clearAllOutputs(): void {
         // Make a deep copy of the current document state for the undo action.
         const originalDocumentData = JSON.parse(JSON.stringify(this._documentData));
-        let outputsWereCleared = false;
+        let wasChanged = false;
 
-        // Go through each cell and clear outputs if it's a code cell.
-        this._documentData.cells.forEach(cell => {
+        // We still create a new copy to modify
+        const clearedCells = JSON.parse(JSON.stringify(this._documentData.cells));
+        clearedCells.forEach((cell: IpynbCell) => {
             if (cell.cell_type === 'code' && cell.outputs && cell.outputs.length > 0) {
                 cell.outputs = [];
                 cell.execution_count = null;
-                outputsWereCleared = true;
+                wasChanged = true;
+            }
+
+            // Also check if there is execution metadata to clear
+            if (cell.metadata?.slide_show_editor) {
+                delete cell.metadata.slide_show_editor;
+                wasChanged = true; 
             }
         });
 
         // Only proceed if a change was actually made.
-        if (outputsWereCleared) {
+        if (wasChanged) {
             console.log(`[IpynbSlideDocument] Cleared all outputs for ${this.uri.fsPath}`);
 
+            this._documentData.cells = clearedCells;
             // Fire this event to trigger a UI update in the webview.
             this._onDidChangeContent.fire();
 
@@ -247,7 +255,8 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
                 },
                 redo: async () => {
                     console.log(`[IpynbSlideDocument] REDO: Clearing all outputs again.`);
-                    this.clearAllOutputs(); // Re-running the method is a simple way to redo the action.
+                    this._documentData.cells = clearedCells;
+                    this._onDidChangeContent.fire();
                 }
             });
         } else {
@@ -500,25 +509,42 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         });
     }
 
-    public updateCellOutputs(index: number, outputs: NotebookOutput[]): void {
-        if (index < 0 || index >= this.cells.length) {
-            console.warn(`[IpynbSlideDocument] updateCellOutputs: Invalid index ${index}.`);
-            return;
-        }
+    public updateCellExecutionResult(
+        index: number, 
+        outputs: NotebookOutput[], 
+        executionData: { success: boolean; duration: string }
+    ): void {
+        if (index < 0 || index >= this.cells.length) {return;}
 
         const cell = this._documentData.cells[index];
-        if (!cell) {
-            console.warn(`[IpynbSlideDocument] updateCellOutputs: No cell found at index ${index}.`);
-            return;
-        }
+        if (cell.cell_type !== 'code') {return;}
 
-        // Replace the old outputs with the new ones returned from the kernel.
+        // 1. Save the original state of just this cell for the undo action.
+        const originalCellState = JSON.parse(JSON.stringify(cell));
+
+        // 2. Apply all new data to the cell.
         cell.outputs = outputs;
+        cell.execution_count = (cell.execution_count || 0) + 1;
+        if (!cell.metadata) {cell.metadata = {};}
+        cell.metadata.slide_show_editor = { execution: executionData };
 
-        // Fire the content change event. This is crucial as it tells the
-        // IpynbSlideProvider to send the updated data to the webview,
-        // which will then re-render the slide to show the new output.
+        // 3. Fire the events.
         this._onDidChangeContent.fire();
+
+        this._onDidChangeDocument.fire({
+            document: this,
+            label: 'Run Cell', // A clear label for the undo menu
+            undo: async () => {
+                // To undo, we simply restore the original state of the cell.
+                this._documentData.cells[index] = originalCellState;
+                this._onDidChangeContent.fire();
+            },
+            redo: async () => {
+                // To redo, we re-apply the new state.
+                this._documentData.cells[index] = cell;
+                this._onDidChangeContent.fire();
+            }
+        });
     }
     async backup(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         console.log(`[IpynbSlideDocument] Backup operation invoked for ${destination.fsPath}.`);

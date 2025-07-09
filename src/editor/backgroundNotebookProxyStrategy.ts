@@ -80,7 +80,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
     }
     
     private findKernelMatchingEnvironment(pythonPath: string): string | undefined {
-        console.log(this._availableKernelSpecs)
+        console.log(this._availableKernelSpecs);
         if (!this._availableKernelSpecs?.kernelspecs) {
             return undefined;
         }
@@ -88,8 +88,8 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         for (const key in this._availableKernelSpecs.kernelspecs) {
             
             const spec = this._availableKernelSpecs.kernelspecs[key];
-            const actualspce = spec?.spec as ISpecModel
-            console.log(spec)
+            const actualspce = spec?.spec as ISpecModel;
+            console.log(spec);
             // Check if the kernel's executable path matches the server's pythonPath
             if (actualspce?.argv[0] === pythonPath) {
                 console.log(`[ProxyStrategy] Found matching kernel spec: ${spec?.name} for python ${pythonPath}`);
@@ -132,7 +132,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
 
             // Manually construct the URL for the REST API endpoint
             const url = `${settings.baseUrl}api/kernelspecs`;
-            console.log(url)
+            console.log(url);
             try {
                 // Use the global fetch to make the API call with the required authorization token
                 const response = await (globalThis as any).fetch(url, {
@@ -616,6 +616,44 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
 
         // Fallback to the internal kernel name if display_name isn't available
         return kernelName;
+    }
+
+    public async restartKernel(): Promise<void> {
+        if (!this._sessionConnection?.kernel) {
+            throw new Error("Cannot restart: no active kernel.");
+        }
+        
+        const kernelId = this._sessionConnection.kernel.id;
+        console.log(`[ProxyStrategy] Restarting kernel '${kernelId}' via direct API call...`);
+
+        // Manually construct the request details, as the library method is unreliable.
+        const port = 8989;
+        const token = 'c8deb952f41e46e2a22d708358406560';
+        const baseUrl = `http://localhost:${port}`;
+        const url = `${baseUrl}/api/kernels/${kernelId}/restart`;
+
+        try {
+            const response = await (globalThis as any).fetch(url, {
+                method: 'POST',
+                // A restart request has an empty body
+                headers: {
+                    'Authorization': `token ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API call to restart kernel failed. Status: ${response.status}, Body: ${errorText}`);
+            }
+
+            console.log('[ProxyStrategy] Kernel restart request successful.');
+            // NOTE: A successful restart should trigger the same `kernelChanged` signal 
+            // that our provider already listens to, which will update the UI.
+            
+        } catch (error) {
+            console.error('[ProxyStrategy] Failed to restart kernel.', error);
+            throw error; // Re-throw so the DocumentManager can handle it.
+        }
     }
 }
 

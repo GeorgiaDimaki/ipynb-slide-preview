@@ -10692,7 +10692,7 @@ body {
   border: 1px solid var(--vscode-input-border, #3c3c3c);
   border-radius: 2px;
   margin: 5px;
-  margin-top: 2.5px;
+  margin-top: 2px;
   margin-right: 2.5px;
   overflow: hidden;
 }

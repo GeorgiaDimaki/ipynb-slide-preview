@@ -1,11 +1,14 @@
+import * as vscode from 'vscode';
 import { IKernelExecutionStrategy } from './executionStrategy';
 import { IpynbSlideDocument } from './ipynbSlideDocument'; // Import this
 import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrategy';
 import { ISpecModels } from '@jupyterlab/services/lib/kernelspec/restapi';
-import * as vscode from 'vscode';
 
 export class DocumentManager {
     private executionStrategy: IKernelExecutionStrategy;
+    private _isBusy: boolean = false;
+    private readonly _onBusyStateChanged = new vscode.EventEmitter<boolean>();
+    public readonly onBusyStateChanged = this._onBusyStateChanged.event;
 
     constructor(
         private readonly document: IpynbSlideDocument,
@@ -14,21 +17,85 @@ export class DocumentManager {
         this.executionStrategy = strategy;
     }
 
+    public isBusy(): boolean {
+        return this._isBusy;
+    }
+
+    private async performBusyAction(action: () => Promise<any>) {
+        if (this._isBusy) {
+            vscode.window.showInformationMessage("An operation is already in progress.");
+            return;
+        }
+        this._isBusy = true;
+        this._onBusyStateChanged.fire(true);
+        try {
+            await action();
+        } catch (error: any) {
+            vscode.window.showErrorMessage(error.message || 'An unexpected error occurred.');
+            console.error('[DocumentManager] Action failed:', error);
+        } finally {
+            this._isBusy = false;
+            this._onBusyStateChanged.fire(false);
+        }
+    }
+
     public async initialize(): Promise<void> {
         // Delegate initialization to the strategy
         await this.executionStrategy.initialize();
     }
 
     public async runCell(index: number): Promise<void> {
-        const cell = this.document.cells[index];
-        if (!cell || cell.cell_type !== 'code') return;
-        
-        // When we execute, we need to update the outputs.
-        // The strategy will return the new outputs.
-        const newOutputs = await this.executionStrategy.executeCell(cell);
-        
-        // We now call the method that updates the document and notifies the webview
-        this.document.updateCellOutputs(index, newOutputs);
+        return this.performBusyAction(async () => {
+            const cell = this.document.cells[index];
+            if (!cell || cell.cell_type !== 'code') {return;}
+
+            const startTime = performance.now();
+            const newOutputs = await this.executionStrategy.executeCell(cell);
+            const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+            const success = !newOutputs.some(o => o.output_type === 'error');
+            
+            this.document.updateCellExecutionResult(index, newOutputs, { success, duration: `${duration}s` });
+        });
+    }
+    
+    public async runAllCells(): Promise<void> {
+        return this.performBusyAction(async () => {
+            console.log('[DocumentManager] Starting Run All...');
+            for (let i = 0; i < this.document.cells.length; i++) {
+                if (this.document.cells[i].cell_type === 'code') {
+                    const cell = this.document.cells[i];
+                    const startTime = performance.now();
+                    const newOutputs = await this.executionStrategy.executeCell(cell);
+                    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                    const success = !newOutputs.some(o => o.output_type === 'error');
+                    
+                    this.document.updateCellExecutionResult(i, newOutputs, { success, duration: `${duration}s` });
+
+                    if (!success) {
+                        vscode.window.showErrorMessage(`Execution failed at slide ${i + 1}. Halting Run All.`);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    public clearAllOutputs(): void {
+        // This action is synchronous, so it doesn't need the async wrapper, but it still must check the busy state.
+        if (this._isBusy) {
+            vscode.window.showInformationMessage("An operation is already in progress.");
+            return;
+        }
+        this.document.clearAllOutputs();
+    }
+
+    public restartKernel(): Promise<void> {
+        return this.performBusyAction(async () => {
+            // We will add the logic for this in the next step, inside the strategy.
+            await (this.executionStrategy as BackgroundNotebookProxyStrategy).restartKernel();
+            // After restarting, we should also clear all outputs and metadata.
+            this.document.clearAllOutputs();
+        });
     }
 
     public dispose(): void {

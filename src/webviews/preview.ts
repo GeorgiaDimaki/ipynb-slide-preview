@@ -63,10 +63,6 @@ import 'monaco-editor/esm/vs/basic-languages/css/css.contribution.js';
 
 declare function acquireVsCodeApi(): VsCodeApi;
 
-const executionStartTimes = new Map<number, number>();
-const executionResults = new Map<number, { success: boolean; duration: string }>();
-
-
 // --- Main Webview Script ---
 
 console.log('[PreviewScript] Initializing...');
@@ -106,41 +102,22 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
                 if (kernelNameSpan && message.payload.controllerName) {
                     kernelNameSpan.textContent = message.payload.controllerName;
                 }
-                // Check if there was an execution to time
-                const startTime = executionStartTimes.get(message.payload.slideIndex);
-                if (startTime) {
-                    const endTime = performance.now();
-                    const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-                    // Save the result to our persistent map
-                    executionResults.set(message.payload.slideIndex, {
-                        success: message.payload.executionSuccess,
-                        duration: `${duration}s`
-                    });
-
-                    // Find the right status div and run button for the specific cell
-                    const cellContainer = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"]`);
-                    const statusDiv = cellContainer?.querySelector('.execution-status');
-                    const runButton = cellContainer?.querySelector('.run-button') as HTMLButtonElement | null;
-
-                    if (statusDiv) {
-                        const icon = message.payload.executionSuccess
-                            ? `<span class="icon success">✔</span>`
-                            : `<span class="icon error">✖</span>`;
-                        statusDiv.innerHTML = `${icon} ${duration}s`;
-                    }
-                    if (runButton) {
-                        runButton.disabled = false;
-                    }
-
-                    executionStartTimes.delete(message.payload.slideIndex);
+                // After rendering, find the run button and ensure it's enabled
+                const cellContainer = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"]`);
+                const runButton = cellContainer?.querySelector('.run-button') as HTMLButtonElement | null;
+                if (runButton) {
+                    runButton.disabled = false;
                 }
+            
             } else {
                 console.warn('[PreviewScript] updateSlide message received with no payload.');
             }
             break;
         default:
-            console.warn('[PreviewScript] Received unknown message type:', message.type);
+            // We log a generic message because TypeScript knows this case should be unreachable.
+            console.warn('[PreviewScript] Received an unknown message type from the extension.');
+            break;    
     }
 });
 
@@ -240,14 +217,15 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         const executionStatusDiv = document.createElement('div');
         executionStatusDiv.className = 'execution-status';
 
-        // Check if there's a persistent result for this slide
-        const persistentResult = executionResults.get(slideIndex);
-        if (persistentResult) {
-            const icon = persistentResult.success
+        // Check if there's persistent execution data in the cell's metadata
+        const executionResult = (cell.metadata as any)?.slide_show_editor?.execution;
+        if (executionResult) {
+            const icon = executionResult.success
                 ? `<span class="icon success">✔</span>`
                 : `<span class="icon error">✖</span>`;
-            executionStatusDiv.innerHTML = `${icon} ${persistentResult.duration}`;
+            executionStatusDiv.innerHTML = `${icon} ${executionResult.duration}`;
         }
+
         runContainer.appendChild(executionStatusDiv);
 
         // 4. Add the whole container to the toolbar
@@ -255,19 +233,12 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
 
         // 5. Assign the onclick handler now that all elements exist
         runButton.onclick = () => {
-            // Find the status div within our container
+            // Find the status div and show the spinner
             const statusDiv = runContainer.querySelector('.execution-status');
-            if (!statusDiv) { return; }
-
-            // Clear the persistent result for this slide index
-            executionResults.delete(slideIndex);
-
-            // Clear previous status, add a spinner, and disable the button
-            statusDiv.innerHTML = '<div class="spinner"></div>';
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div class="spinner"></div>';
+            }
             runButton.disabled = true;
-
-            // Record start time and send the message
-            executionStartTimes.set(slideIndex, performance.now());
             vscode.postMessage({ type: 'runCell', payload: { slideIndex } });
         };
     } else if (cell.cell_type === 'markdown') {
@@ -654,5 +625,20 @@ if (clearOutputsButton) {
     clearOutputsButton.addEventListener('click', () => {
         console.log("[PreviewScript] Clear All Outputs button clicked");
         vscode.postMessage({ type: 'clearAllOutputs' });
+    });
+}
+
+const runAllButton = document.getElementById('run-all-button');
+if (runAllButton) {
+    runAllButton.addEventListener('click', () => {
+        console.log("[PreviewScript] Run All button clicked");
+        vscode.postMessage({ type: 'runAll' });
+    });
+}
+
+const restartKernelButton = document.getElementById('restart-kernel-button');
+if (restartKernelButton) {
+    restartKernelButton.addEventListener('click', () => {
+        vscode.postMessage({ type: 'restartKernel' });
     });
 }
