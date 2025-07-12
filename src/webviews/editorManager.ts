@@ -20,6 +20,13 @@ export const EditorManager = {
         vscode = vsCodeApi;
     },
     
+    setTheme: function(theme: string) {
+        if (this.activeEditor) {
+            monaco.editor.setTheme(theme);
+            console.log(`[EditorManager] Updated active editor theme to "${theme}".`);
+        }
+    },
+    
     /**
      * Commits the changes from the active editor to the extension host if content has changed.
      */
@@ -77,7 +84,8 @@ export const EditorManager = {
         containerElement: HTMLElement,
         slideIndex: number,
         language: string,
-        initialSource: string
+        initialSource: string,
+        theme: string
     ) {
         // First, ensure any previous editor is fully disposed of.
         this.disposeCurrent();
@@ -87,7 +95,7 @@ export const EditorManager = {
         const editor = monaco.editor.create(containerElement, {
             value: initialSource,
             language: language,
-            theme: 'vs-dark',
+            theme: theme,
             readOnly: false,
             automaticLayout: true,
             minimap: { enabled: false },
@@ -153,7 +161,7 @@ export const EditorManager = {
     /**
      * Handles the UI toggle for markdown cells between rendered and editor views.
      */
-    toggleMarkdownEdit: function(slideIndex: number, cellContainer: HTMLElement, cellData: MarkdownCell) {
+    toggleMarkdownEdit: function(slideIndex: number, cellContainer: HTMLElement, cellData: MarkdownCell, theme:string) {
         // If we are toggling the currently active editor, it means we want to "Render" it.
         if (this.activeEditor && this.activeEditorInfo?.slideIndex === slideIndex) {
             const finalSource = this.activeEditor.getValue();
@@ -172,7 +180,7 @@ export const EditorManager = {
             if (!editorWrapper) {return;}
             
             cellContainer.classList.add('is-editing');
-            this.create(editorWrapper, slideIndex, 'markdown', sourceToString(cellData.source));
+            this.create(editorWrapper, slideIndex, 'markdown', sourceToString(cellData.source), theme);
         }
     }
 };

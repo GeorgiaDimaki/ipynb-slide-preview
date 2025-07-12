@@ -249,7 +249,13 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         toggleEditButton.onclick = () => {
             const body = cellContainerElement.querySelector('.markdown-cell-body');
             if (body) {
-                EditorManager.toggleMarkdownEdit(slideIndex, cellContainerElement, cell as MarkdownCell);
+                let monacoTheme = 'vs-dark'; // Default to dark
+                if (document.body.classList.contains('vscode-light')) {
+                    monacoTheme = 'vs';
+                } else if (document.body.classList.contains('vscode-high-contrast')) {
+                    monacoTheme = 'hc-black';
+                }
+                EditorManager.toggleMarkdownEdit(slideIndex, cellContainerElement, cell as MarkdownCell, monacoTheme);
             }        
         };
         leftActions.appendChild(toggleEditButton); // Place it on the left for now
@@ -284,6 +290,33 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
     
     return toolbar;
 }
+
+// This function determines the Monaco theme and applies it.
+function applyCurrentTheme() {
+    let monacoTheme = 'vs-dark'; // Default
+    if (document.body.classList.contains('vscode-light')) {
+        monacoTheme = 'vs';
+    } else if (document.body.classList.contains('vscode-high-contrast')) {
+        monacoTheme = 'hc-black';
+    }
+    EditorManager.setTheme(monacoTheme);
+}
+
+const themeObserver = new MutationObserver((mutationsList, observer) => {
+    // We only care about changes to the 'class' attribute.
+    for (const mutation of mutationsList) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            console.log('[PreviewScript] Body class changed, updating theme.');
+            applyCurrentTheme();
+            break; // No need to check other mutations
+        }
+    }
+});
+
+
+themeObserver.observe(document.body, { attributes: true });
+
+console.log('[PreviewScript] Theme change observer is now active.');
 
 function renderSlide(payload: SlidePayload): void {
     if (!contentDiv) { return; }
@@ -441,12 +474,20 @@ function renderSlide(payload: SlidePayload): void {
         }
         cellContainerDiv.appendChild(bodyDiv);
 
+        let monacoTheme = 'vs-dark'; // Default to dark
+        if (document.body.classList.contains('vscode-light')) {
+            monacoTheme = 'vs';
+        } else if (document.body.classList.contains('vscode-high-contrast')) {
+            monacoTheme = 'hc-black';
+        }
+
         const language = (cell.metadata?.language_info?.name || payload.notebookLanguage || 'plaintext').toLowerCase();
         EditorManager.create(
             editorContainer,
             payload.slideIndex,
             language,
-            sourceToString(cell.source)
+            sourceToString(cell.source),
+            monacoTheme
         );
 
     } else {
