@@ -409,7 +409,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
-            
+
             <div id="main-toolbar">
                 <div class="toolbar-actions-left">
                     <button id="run-all-button" class="toolbar-button" title="Run All Cells">
@@ -463,9 +463,13 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             </div>
 
             <div id="controls">
-                <button id="prev-button">Previous</button>
+                <button id="prev-button" title="Previous Slide">
+                    <span class="codicon codicon-chevron-left"></span>
+                </button>
                 <span id="slide-indicator"></span>
-                <button id="next-button">Next</button>
+                <button id="next-button" title="Next Slide">
+                    <span class="codicon codicon-chevron-right"></span>
+                </button>
             </div>
 
             <script nonce="${nonce}" src="${scriptUri}"></script>

@@ -10438,16 +10438,16 @@ body {
 }
 #controls button {
   padding: 5px 15px;
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: 1px solid var(--vscode-button-border, transparent);
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  color: var(--vscode-foreground);
   border-radius: 3px;
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
 }
 #controls button:hover {
-  background-color: var(--vscode-button-hoverBackground);
+  border-color: var(--vscode-focusBorder);
 }
 #controls button:disabled {
   opacity: 0.5;

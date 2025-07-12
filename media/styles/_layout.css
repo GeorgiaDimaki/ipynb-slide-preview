@@ -34,9 +34,9 @@
 
 #controls button { /* Styling for Prev/Next buttons in the main bottom controls */
     padding: 5px 15px;
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: 1px solid var(--vscode-button-border, transparent);
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-editorWidget-border, #454545);
+    color: var(--vscode-foreground);
     border-radius: 3px;
     cursor: pointer;
     font-family: inherit; /* Inherit from body to match VS Code's font settings */
@@ -44,7 +44,7 @@
 }
 
 #controls button:hover {
-    background-color: var(--vscode-button-hoverBackground);
+    border-color: var(--vscode-focusBorder);
 }
 
 #controls button:disabled {
