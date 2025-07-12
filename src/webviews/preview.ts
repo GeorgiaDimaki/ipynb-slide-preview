@@ -324,7 +324,7 @@ function renderSlide(payload: SlidePayload): void {
 
     // If we get an update for the slide that already has an active editor,
     // we just update its content instead of doing a disruptive full re-render.
-    if (EditorManager.activeEditor && EditorManager.activeEditorInfo?.slideIndex === payload.slideIndex && payload.cell) {
+    if (EditorManager.activeEditor && EditorManager.activeEditorInfo?.slideIndex === payload.slideIndex && payload.cell && EditorManager.activeEditorInfo.cellType === payload.cell.cell_type) {
         const cellContainerDiv = EditorManager.activeEditorInfo.cellContainer.closest('.cell') as HTMLDivElement | null;
         if (!cellContainerDiv) { return; }
 

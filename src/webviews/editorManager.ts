@@ -13,6 +13,7 @@ export const EditorManager = {
         slideIndex: number;
         cellContainer: HTMLElement; // The cell body element
         initialSource: string;      // The source content when the editor was created/last committed
+        cellType: 'code' | 'markdown';
     } | null,
     debounceTimer: undefined as number | undefined,
     
@@ -26,7 +27,7 @@ export const EditorManager = {
             console.log(`[EditorManager] Updated active editor theme to "${theme}".`);
         }
     },
-    
+
     /**
      * Commits the changes from the active editor to the extension host if content has changed.
      */
@@ -102,8 +103,9 @@ export const EditorManager = {
             wordWrap: 'on',
         });
 
+        const cellType = language === 'markdown' ? 'markdown' : 'code';
         this.activeEditor = editor;
-        this.activeEditorInfo = { slideIndex, cellContainer: containerElement.parentElement!, initialSource };
+        this.activeEditorInfo = { slideIndex, cellContainer: containerElement.parentElement!, initialSource, cellType };
 
         // --- Attach Listeners ---
 
