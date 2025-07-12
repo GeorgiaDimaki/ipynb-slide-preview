@@ -1,14 +1,9 @@
 /* --- 4. Individual Slide (Cell) Styling --- */
 .cell {
     /* Visual container for each slide */
-    margin: 0 0 25px 0; /* Bottom margin for spacing between slides */
+    
     width: 100%;
-    max-width: 900px;   /* Max width for a slide */
-
-    /* Consistent slide height management */
-    height: 70vh;       /* Target height: 70% of viewport height */
-    min-height: 400px;  /* Minimum slide height */
-    max-height: 650px;  /* Maximum slide height (adjust as needed) */
+    height: 100%;
 
     background-color: var(--vscode-sideBar-background, #252526); /* Slide background, distinct from page */
     border: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));

@@ -1,13 +1,13 @@
-/* --- Slide Content Area (Scrollable Area for Slides) --- */
-#slide-content {
-    flex-grow: 1; /* Takes up available vertical space left by other flex items in body */
-    overflow-y: auto; /* Allows scrolling BETWEEN multiple slides if their sum of heights exceeds viewport */
-    padding: 20px;    /* Padding around the collection of slides */
-    /* margin-bottom: 40px; /* Space for the fixed bottom #controls bar */
+/* --- Slide Content Area --- */
+#main-view-wrapper {
+    flex-grow: 1; 
+    overflow-y: auto; /* Allows scrolling for the entire view */
+    padding: 20px;    
     display: flex;
-    flex-direction: column; /* Stack slides vertically */
-    align-items: center; /* Center slides horizontally if they have a max-width */
+    flex-direction: column;
+    align-items: center; /* Center the slide-positioning-context horizontally */
 }
+
 
 /* --- Main Navigation Controls (Bottom of Viewport) --- */
 #controls {
@@ -50,4 +50,29 @@
 #controls button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+
+.slide-positioning-context {
+    --side-control-width: 120px; 
+    --slide-width: 900px;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch; /* This is the key: makes all children (side controls, slide) have the same height */
+    justify-content: center;
+    width: 100%;
+    
+    /* These properties now control the height of the entire group */
+    height: 70vh;      
+    min-height: 400px;
+    max-height: 650px; 
+    
+    /* This ensures that the slide-content in the middle does not exceed its max-width */
+    max-width: calc(var(--slide-width) + (2 * var(--side-control-width))); /* slide's 900px + two side controls widths*/
+}
+
+#slide-content {
+    width: 100%;
+    max-width: var(--slide-width);
+    display: flex; /* To contain the .cell div */
 }

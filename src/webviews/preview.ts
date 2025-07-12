@@ -570,43 +570,28 @@ if (nextButton) {
     console.warn("[PreviewScript] Next button not found.");
 }
 
-if (addSlideLeftButton) {
-    addSlideLeftButton.addEventListener('click', () => {
-        if (typeof currentPayloadSlideIndex === 'number') {
-            console.log(`[PreviewScript] Posting 'addCellBefore' current index ${currentPayloadSlideIndex}`);
-            vscode.postMessage({
-                type: 'addCellBefore',
-                payload: {
-                    currentSlideIndex: currentPayloadSlideIndex,
-                    cellType: 'markdown' // Default to markdown for now
-                }
-            });
-        } else {
-            console.warn('[PreviewScript] AddCellBefore: currentPayloadSlideIndex not available.');
-        }
-    });
-} else {
-    console.warn('[PreviewScript] Add Slide Left button not found.');
+function setupInsertControls() {
+    // This function finds all four buttons and attaches the correct
+    // 'addCellBefore' or 'addCellAfter' message to them.
+    
+    const setupButton = (id: string, action: 'addCellBefore' | 'addCellAfter', cellType: 'code' | 'markdown') => {
+        const button = document.getElementById(id);
+        button?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof currentPayloadSlideIndex === 'number') {
+                vscode.postMessage({ type: action, payload: { currentSlideIndex: currentPayloadSlideIndex, cellType } });
+            }
+        });
+    };
+
+    setupButton('add-code-before', 'addCellBefore', 'code');
+    setupButton('add-markdown-before', 'addCellBefore', 'markdown');
+    setupButton('add-code-after', 'addCellAfter', 'code');
+    setupButton('add-markdown-after', 'addCellAfter', 'markdown');
 }
 
-if (addSlideRightButton) {
-    addSlideRightButton.addEventListener('click', () => {
-        if (typeof currentPayloadSlideIndex === 'number') {
-            console.log(`[PreviewScript] Posting 'addCellAfter' current index ${currentPayloadSlideIndex}`);
-            vscode.postMessage({
-                type: 'addCellAfter',
-                payload: {
-                    currentSlideIndex: currentPayloadSlideIndex,
-                    cellType: 'markdown' // Default to markdown for now
-                }
-            });
-        } else {
-            console.warn('[PreviewScript] AddCellAfter: currentPayloadSlideIndex not available.');
-        }
-    });
-} else {
-    console.warn('[PreviewScript] Add Slide Right button not found.');
-}
+// Call the setup function once the DOM is ready
+setupInsertControls();
 
 // --- Initialization ---
 if (contentDiv) {

@@ -409,6 +409,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
+            
             <div id="main-toolbar">
                 <div class="toolbar-actions-left">
                     <button id="run-all-button" class="toolbar-button" title="Run All Cells">
@@ -432,16 +433,32 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                     </div>
                 </div>
             </div>
+
             <div id="main-view-wrapper">
-                <div id="add-slide-left-container" class="side-add-slide-container">
-                    <button id="add-slide-left-button" class="side-add-button" title="Add slide before current">+</button>
-                </div>
+                <div class="slide-positioning-context">
+                    <div id="add-slide-left-container" class="side-add-slide-container">
+                        <div class="insert-controls">
+                            <div class="insert-line"></div>
+                            <div class="insert-buttons">
+                                <button id="add-code-before" class="insert-button">+ Code</button>
+                                <button id="add-markdown-before" class="insert-button">+ Markdown</button>
+                            </div>
+                        </div>
+                    </div>
 
-                <div id="slide-content">  <p>Loading slide content...</p>
-                </div>
+                    <div id="slide-content">  
+                        <p>Loading slide content...</p>
+                    </div>
 
-                <div id="add-slide-right-container" class="side-add-slide-container">
-                    <button id="add-slide-right-button" class="side-add-button" title="Add slide after current">+</button>
+                    <div id="add-slide-right-container" class="side-add-slide-container">
+                        <div class="insert-controls">
+                            <div class="insert-line"></div>
+                            <div class="insert-buttons">
+                                <button id="add-code-after" class="insert-button">+ Code</button>
+                                <button id="add-markdown-after" class="insert-button">+ Markdown</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
