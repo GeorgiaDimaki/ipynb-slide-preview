@@ -26,6 +26,12 @@ import { ISpecModel, ISpecModels } from '@jupyterlab/services/lib/kernelspec/res
  * background Jupyter server process.
  */
 export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy {
+
+    // --- Encapsulated server configuration constants ---
+    private static readonly JUPYTER_PORT = 8989;
+    private static readonly JUPYTER_TOKEN = 'c8deb952f41e46e2a22d708358406560';
+    private static readonly JUPYTER_BASE_URL = `http://localhost:${BackgroundNotebookProxyStrategy.JUPYTER_PORT}`;
+
     public isInitialized = false;
     
     // --- PRIVATE PROPERTIES ---
@@ -287,9 +293,6 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      */
     private startJupyterServer(pythonPath: string): Promise<ServerConnection.ISettings> {
         return new Promise(async (resolve, reject) => {
-            const port = 8989; // Use a fixed, predictable port to avoid ambiguity.
-            const token = 'c8deb952f41e46e2a22d708358406560'; // Use a fixed token.
-            const baseUrl = `http://localhost:${port}`;
 
             try {
                 
@@ -317,8 +320,8 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                     'jupyter',
                     'server',
                     '--no-browser',
-                    `--port=${port}`,
-                    `--ServerApp.token=${token}`,
+                    `--port=${BackgroundNotebookProxyStrategy.JUPYTER_PORT}`,
+                    `--ServerApp.token=${BackgroundNotebookProxyStrategy.JUPYTER_TOKEN}`,
                     `--ServerApp.password=''`
                 ];
 
@@ -359,16 +362,20 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                     }
 
                     try {
-                        const response = await fetch(`${baseUrl}/api/status`, {
+                        const url = `${BackgroundNotebookProxyStrategy.JUPYTER_BASE_URL}/api/status`;
+                        const token = BackgroundNotebookProxyStrategy.JUPYTER_TOKEN;
+
+                        const response = await fetch(url, {
                             headers: { 'Authorization': `token ${token}` }
                         });
+
 
                         if (response.ok) {
                             console.log('[ProxyStrategy] Jupyter server is responsive.');
                             clearInterval(pollInterval);
                             const settings = ServerConnection.makeSettings({
-                                baseUrl: baseUrl,
-                                token: token,
+                                baseUrl: BackgroundNotebookProxyStrategy.JUPYTER_BASE_URL,
+                                token: BackgroundNotebookProxyStrategy.JUPYTER_TOKEN,
                                 appendToken: true,
                                 fetch: fetch as any
                             });
@@ -430,10 +437,8 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         // Get the required info for the API call
         const oldConnection = this._sessionConnection;
         const sessionId = this._sessionConnection.id;
-        const port = 8989;
-        const token = 'c8deb952f41e46e2a22d708358406560';
-        const baseUrl = `http://localhost:${port}`;
-        const url = `${baseUrl}/api/sessions/${sessionId}`;
+        const url = `${BackgroundNotebookProxyStrategy.JUPYTER_BASE_URL}/api/sessions/${sessionId}`;
+        const token = BackgroundNotebookProxyStrategy.JUPYTER_TOKEN;
         
         // The payload for the PATCH request
         const payload = { kernel: { name: newKernelName } };
@@ -482,61 +487,6 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
     }
 
     /**
-     * Prompts the user to select a Python interpreter from a list of all known environments.
-     * @returns A promise that resolves with the path string of the selected interpreter, or undefined if cancelled.
-     */
-    private async selectInterpreterPath(): Promise<string | undefined> {
-        // 1. Get the Python extension
-        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
-        if (!pythonExtension) {
-            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed.');
-            return undefined;
-        }
-        if (!pythonExtension.isActive) {
-            await pythonExtension.activate();
-        }
-
-        // 2. Directly trigger the official "Select Interpreter" command from the Python extension.
-        // This will show the user the full interpreter list UI.
-        await vscode.commands.executeCommand('python.setInterpreter');
-
-        // 3. After the user has selected an interpreter from that UI, 
-        // we can now reliably ask for the path of the newly-active interpreter.
-        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', this.documentUri);
-
-        if (pythonPath) {
-            console.log(`[ProxyStrategy] User selected/confirmed Python interpreter at: ${pythonPath}`);
-            return pythonPath;
-        }
-        
-        console.log('[ProxyStrategy] Interpreter selection was cancelled or no path was returned.');
-        return undefined;
-    }
-
-    /**
-     * Finds the absolute path to the `jupyter` executable on the user's system.
-     * @returns A promise that resolves with the executable path string.
-     */
-    private findJupyterExecutable(): Promise<string> {
-        const command = os.platform() === 'win32' ? 'where jupyter' : 'which jupyter';
-        return new Promise((resolve, reject) => {
-            cp.exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    reject(new Error(`Could not find 'jupyter' executable. Please ensure it's in your system's PATH. Error: ${error.message}`));
-                    return;
-                }
-                const jupyterPath = stdout.split(os.EOL)[0].trim();
-                if (!jupyterPath) {
-                    reject(new Error('Jupyter executable path is empty.'));
-                } else {
-                    console.log(`[ProxyStrategy] Found jupyter executable at: ${jupyterPath}`);
-                    resolve(jupyterPath);
-                }
-            });
-        });
-    }
-
-    /**
      * Finds the path to the active Python interpreter from the VS Code Python extension.
      * @returns A promise that resolves with the path string or undefined if not found.
      */
@@ -561,35 +511,6 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         return undefined;
     }
     
-    /**
-     * Gets the path to the active Python interpreter from the VS Code Python extension.
-     * @returns A promise that resolves with the path string or undefined.
-     */
-    private async getActiveInterpreterPath(): Promise<string | undefined> {
-        // 1. Get the Python extension
-        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
-        if (!pythonExtension) {
-            vscode.window.showErrorMessage('The Python extension (ms-python.python) is not installed. Please install it to run notebooks.');
-            return undefined;
-        }
-
-        // 2. Ensure the extension is activated
-        if (!pythonExtension.isActive) {
-            await pythonExtension.activate();
-        }
-
-        // 3. Get the path using the official API command
-        // The API provides interpreter paths and other details.
-        // We use the 'python.interpreterPath' command for simplicity here.
-        const pythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', this.documentUri);
-        if (pythonPath) {
-            console.log(`[ProxyStrategy] Found active Python interpreter at: ${pythonPath}`);
-            return pythonPath;
-        } else {
-             vscode.window.showErrorMessage('No active Python interpreter is selected. Please select an interpreter to run notebooks.');
-            return undefined;
-        }
-    }
 
     public getActiveKernelName(): string | undefined {
         return this._sessionConnection?.kernel?.name;
@@ -627,10 +548,8 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         console.log(`[ProxyStrategy] Restarting kernel '${kernelId}' via direct API call...`);
 
         // Manually construct the request details, as the library method is unreliable.
-        const port = 8989;
-        const token = 'c8deb952f41e46e2a22d708358406560';
-        const baseUrl = `http://localhost:${port}`;
-        const url = `${baseUrl}/api/kernels/${kernelId}/restart`;
+        const url = `${BackgroundNotebookProxyStrategy.JUPYTER_BASE_URL}/api/kernels/${kernelId}/restart`;
+        const token = BackgroundNotebookProxyStrategy.JUPYTER_TOKEN;
 
         try {
             const response = await (globalThis as any).fetch(url, {
