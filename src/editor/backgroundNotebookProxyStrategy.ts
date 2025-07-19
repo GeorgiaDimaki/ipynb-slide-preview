@@ -83,17 +83,36 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      * Starts the Jupyter server and establishes a kernel session for the notebook.
      */
     public async initialize(): Promise<void> {
-        this.initialPythonPath = await this.findInitialInterpreterPath();
 
-        if (!this.initialPythonPath) {
-            // If we couldn't find any python path, we cannot start a server.
-            // We will fail gracefully and the UI will show the "Select Kernel" state.
-            console.error('[ProxyStrategy] Initialization failed: No suitable Python interpreter could be found.');
+        let pythonPathToUse: string | undefined = undefined;
+
+        // --- PRIORITY 1: Check the saved path for this document ---
+        if (this.initialPythonPath && fs.existsSync(this.initialPythonPath)) {
+            console.log(`[ProxyStrategy] Found saved path: ${this.initialPythonPath}. Verifying it has ipykernel...`);
+            if (await this.isIpykernelInstalled(this.initialPythonPath)) {
+                console.log('[ProxyStrategy] Saved path is valid. Using it.');
+                pythonPathToUse = this.initialPythonPath;
+            } else {
+                console.log('[ProxyStrategy] Saved path is missing ipykernel. Ignoring it.');
+            }
+        }
+
+        // --- PRIORITY 2 & 3: If no valid saved path, find the best alternative ---
+        if (!pythonPathToUse) {
+            console.log('[ProxyStrategy] No valid saved path. Searching for an alternative interpreter.');
+            pythonPathToUse = await this.findBestAlternativeInterpreter();
+        }
+
+        // --- Final Check and Server Start ---
+        if (!pythonPathToUse) {
+            console.error('[ProxyStrategy] Initialization failed: No suitable Python interpreter could be found after all checks.');
             throw new Error("No suitable Python interpreter found.");
         }
 
-        console.log(`[ProxyStrategy] Attempting to initialize with interpreter: ${this.initialPythonPath}`);
-        await this.startServerAndSession(this.initialPythonPath);
+        console.log(`[ProxyStrategy] Attempting to initialize with interpreter: ${pythonPathToUse}`);
+        // We update initialPythonPath here so the DocumentManager has the correct, final path.
+        this.initialPythonPath = pythonPathToUse;
+        await this.startServerAndSession(pythonPathToUse);
     }
 
     public async startServerAndSession(pythonPath: string): Promise<void> {
@@ -282,7 +301,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         });
     }
 
-        public async switchKernelSession(newKernelName: string): Promise<void> {
+    public async switchKernelSession(newKernelName: string): Promise<void> {
         if (!this._sessionConnection) {
             throw new Error("Cannot switch kernel, there is no active session.");
         }
@@ -650,7 +669,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         return await response.json();
     }
 
-    private async findInitialInterpreterPath(): Promise<string | undefined> {
+    private async findBestAlternativeInterpreter(): Promise<string | undefined> {
         console.log('[ProxyStrategy] Searching for a suitable Python interpreter...');
         
         const pythonExtension = vscode.extensions.getExtension('ms-python.python');

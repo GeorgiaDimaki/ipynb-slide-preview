@@ -12,6 +12,7 @@ const PYTHON_PATH_KEY_PREFIX = 'ipynbSlidePreview.pythonPath:';
 
 interface KernelQuickPickItem extends vscode.QuickPickItem {
     kernelName: string; // The internal kernel name, e.g., 'python3'
+    pythonPath: string;
 }
 
 export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlideDocument> {
@@ -278,7 +279,8 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                                 uniqueKernelItems.set(pythonPath, {
                                     label: `$(notebook-kernel-icon) ${displayName}`,
                                     description: (spec?.name === currentKernelName) ? " (Currently Active)" : "",
-                                    kernelName: spec!.name
+                                    kernelName: spec!.name,
+                                    pythonPath: sp?.argv[0] || ''
                                 });
                             }
                         }
@@ -314,6 +316,12 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                                 }, async () => {
                                     try {
                                         await docManager.switchKernelSession(selectedKernel.kernelName);
+                                        
+                                        // After the hot-swap succeeds, save the new path for next time.
+                                        const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
+                                        await this.context.workspaceState.update(pythonPathKey, selectedKernel.pythonPath);
+                                        console.log(`[Provider] Saved new Python path from kernel switch: ${selectedKernel.pythonPath}`);
+                                    
                                         this.updateAllWebviewsForDocument(document);
                                     } catch (err: any) {
                                         vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
@@ -581,7 +589,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
 
                 // After everything succeeds, save the new path.
                 const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
-                this.context.workspaceState.update(pythonPathKey, pythonPath);
+                await this.context.workspaceState.update(pythonPathKey, pythonPath);
                 console.log(`[Provider] Saved new Python path for document: ${pythonPath}`);
                 
             } catch (e: any) {
