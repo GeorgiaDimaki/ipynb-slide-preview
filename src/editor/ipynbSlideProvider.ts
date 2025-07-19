@@ -4,6 +4,7 @@ import { getNonce } from './util';
 import { DocumentManager } from './documentManager';
 import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrategy';
 import { ISpecModel } from '@jupyterlab/services/lib/kernelspec/restapi';
+import * as path from 'path';
 
 
 const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
@@ -242,70 +243,100 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                     break;
                 case 'requestKernelSelection': {
                     const docManager = this.documentManagers.get(document);
-                    if (!docManager || !docManager.isStrategyInitialized()) {
-                        vscode.window.showWarningMessage("Kernel is not yet available. Please wait for startup to complete or check for errors.");
+                    if (!docManager) {
+                        // This is a safeguard for a case that should not happen.
+                        vscode.window.showErrorMessage("Error: Document manager not found.");
                         break;
                     }
 
-                    const specs = docManager.getAvailableKernelSpecs();
-                    const currentKernelDisplayName = docManager.getActiveKernelDisplayName();
-
-                    // Define the item that lets the user switch to a new Python environment
+                    // Define the item that lets the user choose a new environment.
+                    // We define it here so both paths can use it.
                     const selectAnotherKernelItem: vscode.QuickPickItem = {
-                        label: `$(python-icon) Select Another Kernel...`,
-                        description: "Choose a different Python environment to start the server",
+                        label: `$(notebook-kernel-select) Select Another Kernel...`,
+                        detail: "Select a Python environment used to run cells",
                         alwaysShow: true
                     };
+                    
+                    if (docManager.isStrategyInitialized()) {
+                        const specs = docManager.getAvailableKernelSpecs();
+                        const currentKernelName = docManager.getActiveKernelName();
 
-                    // Create the list of available kernels from the current server
-                    const kernelItems: KernelQuickPickItem[] = specs?.kernelspecs ? Object.values(specs.kernelspecs).map(spec => {
-                        const sp = spec?.spec as ISpecModel  | undefined;
-                        return {
-                            label: `$(notebook-kernel-icon) ${(sp && sp.display_name) || 'Unnamed Kernel'}`,
-                            description: (sp?.display_name === currentKernelDisplayName) ? " (Currently Active)" : "",
-                            kernelName: spec!.name
+                        const selectAnotherKernelItem: vscode.QuickPickItem = {
+                            label: `$(notebook-kernel-select) Select Another Kernel...`,
+                            detail: "Choose a different Python environment to start a new server",
+                            alwaysShow: true
                         };
-                    }) : [];
 
-                    // Show the Quick Pick menu with all options
-                    vscode.window.showQuickPick( [ 
-                        ...kernelItems, 
-                        { label: '', kind: vscode.QuickPickItemKind.Separator }, // This line is now fixed
-                        selectAnotherKernelItem 
-                    ], 
-                    {
-                        placeHolder: "Select a kernel or Python environment",
-                        matchOnDescription: true
-                    }).then(selected => {
+                        // Create the list of available kernels from the current server
+                        const kernelItems: KernelQuickPickItem[] = specs?.kernelspecs ? Object.values(specs.kernelspecs).map(spec => {
+                            const sp = spec?.spec as ISpecModel | undefined;
+                            const displayName = (sp && sp.display_name) || 'Unnamed Kernel';
+                            return {
+                                label: `$(notebook-kernel-icon) ${displayName}`,
+                                description: (spec?.name === currentKernelName) ? " (Currently Active)" : "",
+                                kernelName: spec!.name
+                            };
+                        }) : [];
+
+                        // Show the Quick Pick menu with all options
+                                                // Use await to make the code flow sequentially
+                        const selected = await vscode.window.showQuickPick(
+                            [...kernelItems, { label: '', kind: vscode.QuickPickItemKind.Separator }, selectAnotherKernelItem], 
+                            { placeHolder: "Select a kernel to switch to or choose a new environment" }
+                        );
+
                         if (!selected) {
                             console.log('[Provider] Kernel selection cancelled.');
-                            return;
+                            break; // Exit the case if nothing was selected
                         }
 
                         // Case 1: The user selected the "Select Another Kernel..." option
                         if (selected.label === selectAnotherKernelItem.label) {
-                            this.selectAndRestartKernel(document);
+                            this.promptForEnvironmentAndRestart(document);
 
                         // Case 2: The user selected an existing kernel from the list
                         } else if ((selected as KernelQuickPickItem).kernelName) {
                             const selectedKernel = selected as KernelQuickPickItem;
-                            if (selectedKernel.description?.indexOf('(Currently Active)') === -1) {
+                            if (selectedKernel.kernelName !== currentKernelName) {
                                 // Switch the kernel session without restarting the server
-                                vscode.window.withProgress({
+                                await vscode.window.withProgress({
                                     location: vscode.ProgressLocation.Notification,
                                     title: `Switching to kernel: ${selectedKernel.label}`,
                                     cancellable: false
                                 }, async () => {
                                     try {
                                         await docManager.switchKernelSession(selectedKernel.kernelName);
-                                        //this.updateAllWebviewsForDocument(document);
+                                        this.updateAllWebviewsForDocument(document);
                                     } catch (err: any) {
                                         vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
                                     }
                                 });
                             }
+                        
                         }
-                    });
+
+                    } else {
+                        // The automatic bootstrap failed. We now immediately start the manual
+                        // process of selecting a new environment to start a server with.
+                        console.log('[Provider] Server not initialized. Starting manual kernel selection flow.');
+         
+                        // We combine both ideas: show "No Kernels Found" AND the option to select another.
+                        const noKernelsItem: vscode.QuickPickItem = { label: "No Kernels Found", description: "Could not automatically start a Jupyter server." };
+                        const selectAnotherKernelItem: vscode.QuickPickItem = {
+                            label: `$(notebook-kernel-select) Select Another Kernel...`,
+                            detail: "Choose a Python environment to configure a kernel"
+                        };
+
+                        const selection = await vscode.window.showQuickPick(
+                            [noKernelsItem, { label: '', kind: vscode.QuickPickItemKind.Separator }, selectAnotherKernelItem],
+                            { placeHolder: "No kernel is active. Select an environment to get started." }
+                        );
+
+                        if (selection?.label === selectAnotherKernelItem.label) {
+                            // Here we call the new prompter function.
+                            await this.promptForEnvironmentAndRestart(document);
+                        }
+                    }
 
                     break;
                 }
@@ -334,6 +365,23 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             }
         });
 
+    }
+
+
+    async saveCustomDocument(document: IpynbSlideDocument, cancellation: vscode.CancellationToken): Promise<void> {
+        await document.save(cancellation);
+    }
+
+    async saveCustomDocumentAs(document: IpynbSlideDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+        await document.saveAs(destination, cancellation);
+    }
+
+    async revertCustomDocument(document: IpynbSlideDocument, cancellation: vscode.CancellationToken): Promise<void> {
+        await document.revert(cancellation);
+    }
+
+    async backupCustomDocument(document: IpynbSlideDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+        return await document.backup(context.destination, cancellation);
     }
 
     private updateAllWebviewsForDocument(document: IpynbSlideDocument): void {
@@ -477,62 +525,110 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             </html>
         `;
     }
-    private async selectAndRestartKernel(document: IpynbSlideDocument): Promise<void> {
-        // Use the official command to show the interpreter selection UI
-        await vscode.commands.executeCommand('python.setInterpreter');
+    /**
+     * This method is called AFTER a Python environment has been selected or created.
+     * It checks for ipykernel and then triggers the server restart.
+     */
+    private async handleEnvironmentSelection(document: IpynbSlideDocument, pythonPath: string | undefined) {
+        if (!pythonPath) { return; }
 
-        // Check which path the user selected
-        const newPythonPath = await vscode.commands.executeCommand<string>('python.interpreterPath', document.uri);
-
-        // The user might have cancelled the selection
-        if (!newPythonPath) {
-            console.log('[Provider] Interpreter selection was cancelled.');
-            return;
-        }
-
-        vscode.window.withProgress({
+        await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: "Restarting Jupyter server with new environment...",
-            cancellable: false
-        }, async () => {
-            // Get the current document manager and dispose of it, which will shut down the old server
-            const oldDocManager = this.documentManagers.get(document);
-            if (oldDocManager) {
-                oldDocManager.dispose();
-            }
-
-            // Create a new strategy and a new document manager with the new Python path
-            const newStrategy = new BackgroundNotebookProxyStrategy(document.uri, document.getNotebookData(), newPythonPath);
-            const newDocManager = new DocumentManager(document, newStrategy);
-            this.documentManagers.set(document, newDocManager);
-
+            title: `Configuring environment: ${path.basename(pythonPath)}`,
+            cancellable: true
+        }, async (progress, token) => {
             try {
-                // Initialize the new manager and update the UI
+                // Step 1: Check for ipykernel
+                progress.report({ message: "Checking for ipykernel package..." });
+                const tempStrategy = new BackgroundNotebookProxyStrategy(document.uri, {}, undefined);
+                const hasIpykernel = await tempStrategy.isIpykernelInstalled(pythonPath);
+
+                if (token.isCancellationRequested) { return; }
+
+                // Step 2: Install if missing
+                if (!hasIpykernel) {
+                    progress.report({ message: "Installing 'ipykernel' package..." });
+                    await tempStrategy.installPackages(pythonPath, ['ipykernel']);
+                }
+                if (token.isCancellationRequested) { return; }
+
+                // Step 3: Ensure the kernel is registered
+                progress.report({ message: "Registering kernel with Jupyter..." });
+                await tempStrategy.registerKernel(pythonPath);
+                if (token.isCancellationRequested) { return; }
+
+                // Step 4: Now, restart the server with the fully configured environment
+                progress.report({ message: "Starting Jupyter server..." });
+                
+                const oldDocManager = this.documentManagers.get(document);
+                if (oldDocManager) { await oldDocManager.dispose(); }
+
+                const newStrategy = new BackgroundNotebookProxyStrategy(document.uri, document.getNotebookData(), pythonPath);
+                const newDocManager = new DocumentManager(document, newStrategy);
+                this.documentManagers.set(document, newDocManager);
+
                 await newDocManager.initialize();
                 this.updateAllWebviewsForDocument(document);
                 vscode.window.showInformationMessage(`Successfully started server with ${newDocManager.getActiveKernelDisplayName()}`);
+
+                // After everything succeeds, save the new path.
+                const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
+                this.context.workspaceState.update(pythonPathKey, pythonPath);
+                console.log(`[Provider] Saved new Python path for document: ${pythonPath}`);
+                
             } catch (e: any) {
-                vscode.window.showErrorMessage(`Failed to start server with new environment: ${e.message}`);
-                console.error(`[Provider] Error re-initializing with new environment:`, e);
+                vscode.window.showErrorMessage(`Failed to configure environment: ${e.message}`);
+                console.error(`[Provider] Error during environment handling:`, e);
             }
         });
     }
 
-    async saveCustomDocument(document: IpynbSlideDocument, cancellation: vscode.CancellationToken): Promise<void> {
-        await document.save(cancellation);
+    /**
+     * This method handles the full user-facing flow for choosing a new environment.
+     * It shows the "Select..." vs "Create..." menu and handles the result.
+     */
+    private async promptForEnvironmentAndRestart(document: IpynbSlideDocument) {
+        const selectExistingEnvItem: vscode.QuickPickItem = {
+            label: `$(notebook-kernel-select) Select Python Environment...`,
+            detail: "Choose from a list of existing Python environments"
+        };
+        const createNewEnvItem: vscode.QuickPickItem = {
+            label: `$(add) Create Python Environment...`,
+            detail: "Create a new .venv or Conda environment"
+        };
+
+        const selection = await vscode.window.showQuickPick(
+            [selectExistingEnvItem, createNewEnvItem],
+            { placeHolder: "Select a source for your Jupyter Kernel" }
+        );
+
+        if (!selection) { return; }
+
+        try {
+            if (selection.label === createNewEnvItem.label) {
+                // Call the create command and wait for it to finish.
+                await vscode.commands.executeCommand('python.createEnvironment');
+                
+                // Simply inform the user and let them re-initiate the action.
+                // This avoids race conditions with the Python extension's internal state.
+                vscode.window.showInformationMessage(
+                    'Environment created successfully. Please select "Select Another Kernel..." again to choose it.'
+                );
+
+            } else if (selection.label === selectExistingEnvItem.label) {
+                await vscode.commands.executeCommand('python.setInterpreter');
+                const newPath = await vscode.commands.executeCommand<string>('python.interpreterPath', document.uri);
+                // After selecting, we can proceed with the robust handler.
+                if (newPath) {
+                    this.handleEnvironmentSelection(document, newPath);
+                }
+            }
+        } catch (error: any) {
+            console.error('[Provider] Error during environment prompt:', error);
+            vscode.window.showErrorMessage(`An error occurred: ${error.message}`);
+        }
     }
 
-    async saveCustomDocumentAs(document: IpynbSlideDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
-        await document.saveAs(destination, cancellation);
-    }
-
-    async revertCustomDocument(document: IpynbSlideDocument, cancellation: vscode.CancellationToken): Promise<void> {
-        await document.revert(cancellation);
-    }
-
-    async backupCustomDocument(document: IpynbSlideDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
-        return await document.backup(context.destination, cancellation);
-    }
 
     private async selectInterpreterPath(documentUri: vscode.Uri): Promise<string | undefined> {
         const pythonExtension = vscode.extensions.getExtension('ms-python.python');

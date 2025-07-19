@@ -91,15 +91,34 @@ export class DocumentManager {
 
     public restartKernel(): Promise<void> {
         return this.performBusyAction(async () => {
-            // We will add the logic for this in the next step, inside the strategy.
-            await (this.executionStrategy as BackgroundNotebookProxyStrategy).restartKernel();
-            // After restarting, we should also clear all outputs and metadata.
-            this.document.clearAllOutputs();
+            // We wrap the entire operation in vscode.window.withProgress
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification, // Show it as a pop-up notification
+                title: "Restarting Jupyter Kernel", // The main title of the notification
+                cancellable: false // The user cannot cancel this operation
+            }, async (progress) => {
+                
+                // Step 1: Restart the kernel via the strategy
+                progress.report({ message: "Sending restart request to server..." });
+                await (this.executionStrategy as BackgroundNotebookProxyStrategy).restartKernel();
+
+                // A brief pause so the user can read the message before the next step
+                await new Promise(resolve => setTimeout(resolve, 400));
+
+                // Step 2: Clear all outputs in the document
+                progress.report({ message: "Clearing all cell outputs..." });
+                this.document.clearAllOutputs();
+
+                // Another brief pause for readability
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // The notification will automatically disappear when this function completes.
+            });
         });
     }
 
-    public dispose(): void {
-        this.executionStrategy.dispose();
+    public async dispose(): Promise<void> {
+        await this.executionStrategy.dispose();
     }
     
     public isStrategyInitialized(): boolean {
