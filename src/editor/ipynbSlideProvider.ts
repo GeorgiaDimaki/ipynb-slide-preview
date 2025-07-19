@@ -249,14 +249,6 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                         break;
                     }
 
-                    // Define the item that lets the user choose a new environment.
-                    // We define it here so both paths can use it.
-                    const selectAnotherKernelItem: vscode.QuickPickItem = {
-                        label: `$(notebook-kernel-select) Select Another Kernel...`,
-                        detail: "Select a Python environment used to run cells",
-                        alwaysShow: true
-                    };
-                    
                     if (docManager.isStrategyInitialized()) {
                         const specs = docManager.getAvailableKernelSpecs();
                         const currentKernelName = docManager.getActiveKernelName();
@@ -267,16 +259,32 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                             alwaysShow: true
                         };
 
+                        const uniqueKernelItems = new Map<string, KernelQuickPickItem>();
+
+                        if (specs?.kernelspecs) {
+                            for (const spec of Object.values(specs.kernelspecs)) {
+                                const sp = spec?.spec as ISpecModel | undefined;
+                                if (!sp) { continue; }
+
+                                const pythonPath = sp.argv[0];
+                                // If we've already added an entry for this python path, skip.
+                                if (uniqueKernelItems.has(pythonPath)) { continue; }
+
+                                // Prioritize our registered kernel's display name if available.
+                                const isOurKernel = spec?.name.startsWith('ipynb-slideshow-');
+                                if (uniqueKernelItems.has(pythonPath) && !isOurKernel) { continue; }
+
+                                const displayName = sp.display_name || 'Unnamed Kernel';
+                                uniqueKernelItems.set(pythonPath, {
+                                    label: `$(notebook-kernel-icon) ${displayName}`,
+                                    description: (spec?.name === currentKernelName) ? " (Currently Active)" : "",
+                                    kernelName: spec!.name
+                                });
+                            }
+                        }
+
                         // Create the list of available kernels from the current server
-                        const kernelItems: KernelQuickPickItem[] = specs?.kernelspecs ? Object.values(specs.kernelspecs).map(spec => {
-                            const sp = spec?.spec as ISpecModel | undefined;
-                            const displayName = (sp && sp.display_name) || 'Unnamed Kernel';
-                            return {
-                                label: `$(notebook-kernel-icon) ${displayName}`,
-                                description: (spec?.name === currentKernelName) ? " (Currently Active)" : "",
-                                kernelName: spec!.name
-                            };
-                        }) : [];
+                        const kernelItems: KernelQuickPickItem[] = Array.from(uniqueKernelItems.values());
 
                         // Show the Quick Pick menu with all options
                                                 // Use await to make the code flow sequentially
