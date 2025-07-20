@@ -282,7 +282,8 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                     // The 'exit' listener below will still fire after SIGKILL.
                     // This is our forceful, final attempt.
                     processToKill.kill('SIGKILL');
-                }, 2000); // 2-second timeout before forceful kill
+                    resolve();
+                }, 5000); // 2-second timeout before forceful kill
 
                 processToKill.on('exit', (code, signal) => {
                     console.log(`[ProxyStrategy] Server process has exited with signal: ${signal}, code: ${code}.`);
@@ -370,7 +371,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         // If it succeeds (exit code 0), the package is installed.
 
         return new Promise((resolve) => {
-            const command = `"${pythonPath}" -c "import ipykernel, jupyter"`;
+            const command = `"${pythonPath}" -c "import ipykernel, jupyter_server"`;
             cp.exec(command, (error) => {
                 if (error) {
                     // Command failed, which means the import failed.
@@ -555,8 +556,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
                 const command = pythonPath;
                 const args = [
                     '-m', // Execute as a module
-                    'jupyter',
-                    'server',
+                    'jupyter_server',
                     '--no-browser',
                     `--port=${BackgroundNotebookProxyStrategy.JUPYTER_PORT}`,
                     `--ServerApp.token=${BackgroundNotebookProxyStrategy.JUPYTER_TOKEN}`,

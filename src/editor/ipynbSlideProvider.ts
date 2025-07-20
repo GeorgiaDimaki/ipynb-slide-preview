@@ -583,7 +583,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 // Step 2: Install if missing
                 if (!hasPackages) {
                     progress.report({ message: "Installing 'ipykernel' package..." });
-                    await tempStrategy.installPackages(pythonPath, ['ipykernel', 'jupyter']);
+                    await tempStrategy.installPackages(pythonPath, ['ipykernel', 'jupyter_server']);
                 }
                 if (token.isCancellationRequested) { return; }
 
