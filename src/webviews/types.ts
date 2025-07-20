@@ -88,6 +88,7 @@ export interface SlidePayload {
     notebookLanguage: string;
     controllerName: string;
     executionSuccess: boolean;
+    kernelStatus?: 'idle' | 'busy';
 }
 
 

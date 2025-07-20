@@ -4,6 +4,7 @@ import { getNonce } from './util';
 import { DocumentManager } from './documentManager';
 import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrategy';
 import { ISpecModel } from '@jupyterlab/services/lib/kernelspec/restapi';
+import { SlidePayload } from '../webviews/types';
 import * as path from 'path';
 
 
@@ -309,23 +310,40 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                             const selectedKernel = selected as KernelQuickPickItem;
                             if (selectedKernel.kernelName !== currentKernelName) {
                                 // Switch the kernel session without restarting the server
-                                await vscode.window.withProgress({
-                                    location: vscode.ProgressLocation.Notification,
-                                    title: `Switching to kernel: ${selectedKernel.label}`,
-                                    cancellable: false
-                                }, async () => {
-                                    try {
-                                        await docManager.switchKernelSession(selectedKernel.kernelName);
+                                // await vscode.window.withProgress({
+                                //     location: vscode.ProgressLocation.Notification,
+                                //     title: `Switching to kernel: ${selectedKernel.label}`,
+                                //     cancellable: false
+                                // }, async () => {
+                                //     try {
+                                //         await docManager.switchKernelSession(selectedKernel.kernelName);
                                         
-                                        // After the hot-swap succeeds, save the new path for next time.
-                                        const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
-                                        await this.context.workspaceState.update(pythonPathKey, selectedKernel.pythonPath);
-                                        console.log(`[Provider] Saved new Python path from kernel switch: ${selectedKernel.pythonPath}`);
+                                //         // After the hot-swap succeeds, save the new path for next time.
+                                //         const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
+                                //         await this.context.workspaceState.update(pythonPathKey, selectedKernel.pythonPath);
+                                //         console.log(`[Provider] Saved new Python path from kernel switch: ${selectedKernel.pythonPath}`);
                                     
-                                        this.updateAllWebviewsForDocument(document);
-                                    } catch (err: any) {
-                                        vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
-                                    }
+                                //         this.updateAllWebviewsForDocument(document);
+                                //     } catch (err: any) {
+                                //         vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
+                                //     }
+                                // });
+
+                                // 1. Immediately tell the webview we are busy.
+                                this.updateWebviewContent(document, webviewPanel, { kernelStatus: 'busy' });
+
+                                // 2. Perform the actual switch in the background.
+                                docManager.switchKernelSession(selectedKernel.kernelName).then(async () => {
+                                    // 3. After it's done, save the new path.
+                                    const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
+                                    await this.context.workspaceState.update(pythonPathKey, selectedKernel.pythonPath);
+                                    
+                                    // 4. Finally, send a complete update with the new kernel name and idle status.
+                                    this.updateAllWebviewsForDocument(document);
+                                }).catch(err => {
+                                    vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
+                                    // If it fails, tell the UI to go back to idle.
+                                    this.updateAllWebviewsForDocument(document);
                                 });
                             }
                         
@@ -405,7 +423,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         webviews?.forEach(panel => this.updateWebviewContent(document, panel));
     }
 
-    private updateWebviewContent(document: IpynbSlideDocument, webviewPanel: vscode.WebviewPanel): void {
+    private updateWebviewContent(document: IpynbSlideDocument, webviewPanel: vscode.WebviewPanel, overridePayload?: Partial<SlidePayload>): void {
         const currentSlideData = document.getCurrentSlideData();
         const notebookMetadata = document.getNotebookMetadata();
         const notebookLanguage = (notebookMetadata?.language_info?.name || notebookMetadata?.kernelspec?.language || 'plaintext').toLowerCase();
@@ -436,7 +454,8 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 cell: currentSlideData,
                 notebookLanguage: notebookLanguage,
                 controllerName: controllerName,
-                executionSuccess: executionSuccess
+                executionSuccess: executionSuccess,
+                ...overridePayload
             }
         });
     }
@@ -557,14 +576,14 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 // Step 1: Check for ipykernel
                 progress.report({ message: "Checking for ipykernel package..." });
                 const tempStrategy = new BackgroundNotebookProxyStrategy(document.uri, {}, undefined);
-                const hasIpykernel = await tempStrategy.isIpykernelInstalled(pythonPath);
+                const hasPackages = await tempStrategy.hasRequiredPackages(pythonPath);
 
                 if (token.isCancellationRequested) { return; }
 
                 // Step 2: Install if missing
-                if (!hasIpykernel) {
+                if (!hasPackages) {
                     progress.report({ message: "Installing 'ipykernel' package..." });
-                    await tempStrategy.installPackages(pythonPath, ['ipykernel']);
+                    await tempStrategy.installPackages(pythonPath, ['ipykernel', 'jupyter']);
                 }
                 if (token.isCancellationRequested) { return; }
 

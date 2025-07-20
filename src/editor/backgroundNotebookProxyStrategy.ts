@@ -89,7 +89,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         // --- PRIORITY 1: Check the saved path for this document ---
         if (this.initialPythonPath && fs.existsSync(this.initialPythonPath)) {
             console.log(`[ProxyStrategy] Found saved path: ${this.initialPythonPath}. Verifying it has ipykernel...`);
-            if (await this.isIpykernelInstalled(this.initialPythonPath)) {
+            if (await this.hasRequiredPackages(this.initialPythonPath)) {
                 console.log('[ProxyStrategy] Saved path is valid. Using it.');
                 pythonPathToUse = this.initialPythonPath;
             } else {
@@ -365,15 +365,12 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
      * @param pythonPath The absolute path to the Python executable.
      * @returns A promise that resolves to true if ipykernel is installed, false otherwise.
      */
-    public isIpykernelInstalled(pythonPath: string): Promise<boolean> {
+    public hasRequiredPackages(pythonPath: string): Promise<boolean> {
         // We execute a simple Python command to try importing the module.
         // If it succeeds (exit code 0), the package is installed.
 
-        // DEBUG
-        // return Promise.resolve(false);
-
         return new Promise((resolve) => {
-            const command = `"${pythonPath}" -c "import ipykernel"`;
+            const command = `"${pythonPath}" -c "import ipykernel, jupyter"`;
             cp.exec(command, (error) => {
                 if (error) {
                     // Command failed, which means the import failed.
@@ -691,7 +688,7 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         // 2. Check if the found path is valid and has ipykernel before returning it
         if (activeEnv?.path && fs.existsSync(activeEnv.path)) {
             console.log(`[ProxyStrategy] Checking active environment for ipykernel: ${activeEnv.path}`);
-            if (await this.isIpykernelInstalled(activeEnv.path)) {
+            if (await this.hasRequiredPackages(activeEnv.path)) {
                 console.log('[ProxyStrategy] Found valid active environment with ipykernel.');
                 return activeEnv.path;
             }
@@ -711,8 +708,9 @@ export class BackgroundNotebookProxyStrategy implements IKernelExecutionStrategy
         // In the next step we will iterate and checks each environment
         for (const env of environments) {
             if (env.path && fs.existsSync(env.path)) {
-                if (await this.isIpykernelInstalled(env.path)) {
-                    console.log(`[ProxyStrategy] Found first valid environment with ipykernel in list: ${env.path}`);
+                // We are only looking for a perfect match. We will not prompt.
+                if (await this.hasRequiredPackages(env.path)) {
+                    console.log(`[ProxyStrategy] Found first valid, fully configured environment in list: ${env.path}`);
                     return env.path;
                 }
             }

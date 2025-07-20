@@ -97,13 +97,32 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
             if (message.payload) {
                 lastReceivedPayload = message.payload;
                 currentPayloadSlideIndex = message.payload.slideIndex;
+
+                if (kernelStatusContainer) {
+                    if (message.payload.kernelStatus === 'busy') {
+                        // When busy, show the spinner and a temporary message.
+                        kernelStatusContainer.innerHTML = `
+                            <span class="codicon codicon-sync spin"></span>
+                            <span id="kernel-indicator-name">Connecting...</span>
+                        `;
+                    } else { 
+                        // When idle, show the final kernel name.
+                        // This also correctly handles the initial state.
+                        kernelStatusContainer.innerHTML = `
+                            <span id="kernel-indicator-name">${message.payload.controllerName || 'Select Kernel'}</span>
+                        `;
+                    }
+                }
+                
                 renderSlide(message.payload);
                 updateControls(message.payload.slideIndex, message.payload.totalSlides);
+                
+                // This updates the legacy span, which we can now remove as kernelStatusContainer handles it.
+                // However, leaving it for now won't cause harm.
                 if (kernelNameSpan && message.payload.controllerName) {
                     kernelNameSpan.textContent = message.payload.controllerName;
                 }
 
-                // After rendering, find the run button and ensure it's enabled
                 const cellContainer = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"]`);
                 const runButton = cellContainer?.querySelector('.run-button') as HTMLButtonElement | null;
                 if (runButton) {
