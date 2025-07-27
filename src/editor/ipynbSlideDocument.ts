@@ -530,21 +530,7 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
 
         // 3. Fire the events.
         this._onDidChangeContent.fire();
-
-        this._onDidChangeDocument.fire({
-            document: this,
-            label: 'Run Cell', // A clear label for the undo menu
-            undo: async () => {
-                // To undo, we simply restore the original state of the cell.
-                this._documentData.cells[index] = originalCellState;
-                this._onDidChangeContent.fire();
-            },
-            redo: async () => {
-                // To redo, we re-apply the new state.
-                this._documentData.cells[index] = cell;
-                this._onDidChangeContent.fire();
-            }
-        });
+        
     }
     async backup(destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         console.log(`[IpynbSlideDocument] Backup operation invoked for ${destination.fsPath}.`);

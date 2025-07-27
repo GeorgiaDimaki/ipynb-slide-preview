@@ -77,15 +77,17 @@
 
 /* The status area below the run button */
 .execution-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Reserve vertical space to prevent layout shift */
-  min-height: 22px; 
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 11px;
-  color: var(--vscode-foreground);
-  opacity: 0.8;
+    position: absolute;
+    bottom: 8px; /* 8px from the bottom */
+    right: 15px; /* 15px from the right */
+    
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.9;
+    
+    /* This prevents the text from being selected when the user selects code */
+    user-select: none; 
 }
 
 /* The spinner animation */

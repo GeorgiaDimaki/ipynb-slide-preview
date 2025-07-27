@@ -7,6 +7,7 @@
     flex-grow: 1;        /* Fills available vertical space in .cell (after cell's padding-top) */
     min-height: 0;       /* Essential for children to size correctly with flex-basis: 0 */
     overflow: hidden;    /* Prevent children from expanding this container */
+    position: relative;
 }
 
 /* This prevents the toolbar from shrinking if space is tight */

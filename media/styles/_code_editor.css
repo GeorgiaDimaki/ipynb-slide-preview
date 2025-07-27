@@ -12,7 +12,7 @@
     border: 1px solid var(--vscode-input-border, #3c3c3c); /* Border defining editor area */
     border-radius: 2px;
     margin: 5px; /* Small margin around editor area; adjust if output has margin too */
-    margin-top: 2px;
+
     margin-right: 2.5px; /* Half margin if output also has margin-left */
     overflow: hidden; /* Monaco handles its own internal scrolling */
 }

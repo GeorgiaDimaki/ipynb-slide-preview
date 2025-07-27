@@ -309,25 +309,6 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                         } else if ((selected as KernelQuickPickItem).kernelName) {
                             const selectedKernel = selected as KernelQuickPickItem;
                             if (selectedKernel.kernelName !== currentKernelName) {
-                                // Switch the kernel session without restarting the server
-                                // await vscode.window.withProgress({
-                                //     location: vscode.ProgressLocation.Notification,
-                                //     title: `Switching to kernel: ${selectedKernel.label}`,
-                                //     cancellable: false
-                                // }, async () => {
-                                //     try {
-                                //         await docManager.switchKernelSession(selectedKernel.kernelName);
-                                        
-                                //         // After the hot-swap succeeds, save the new path for next time.
-                                //         const pythonPathKey = `${PYTHON_PATH_KEY_PREFIX}${document.uri.toString()}`;
-                                //         await this.context.workspaceState.update(pythonPathKey, selectedKernel.pythonPath);
-                                //         console.log(`[Provider] Saved new Python path from kernel switch: ${selectedKernel.pythonPath}`);
-                                    
-                                //         this.updateAllWebviewsForDocument(document);
-                                //     } catch (err: any) {
-                                //         vscode.window.showErrorMessage(`Failed to switch kernel: ${err.message}`);
-                                //     }
-                                // });
 
                                 // 1. Immediately tell the webview we are busy.
                                 this.updateWebviewContent(document, webviewPanel, { kernelStatus: 'busy' });
@@ -372,6 +353,18 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                         }
                     }
 
+                    break;
+                }
+                case 'togglePresentationMode': {
+                    const docManager = this.documentManagers.get(document);
+                    if (docManager) {
+                        if (docManager.isInPresentationMode) {
+                            await docManager.exitPresentationMode();
+                        } else {
+                            await docManager.enterPresentationMode();
+                        }
+                        this.updateAllWebviewsForDocument(document);
+                    }
                     break;
                 }
                 default:
@@ -455,6 +448,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 notebookLanguage: notebookLanguage,
                 controllerName: controllerName,
                 executionSuccess: executionSuccess,
+                isInPresentationMode: manager?.isInPresentationMode,
                 ...overridePayload
             }
         });
@@ -492,31 +486,45 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
-
-            <div id="main-toolbar">
-                <div class="toolbar-actions-left">
-                    <button id="run-all-button" class="toolbar-button" title="Run All Cells">
-                        <span class="codicon codicon-run-all"></span>
-                        <span>Run All</span>
-                    </button>
-                    <button id="restart-kernel-button" class="toolbar-button" title="Restart Kernel">
-                        <span class="codicon codicon-refresh"></span>
-                        <span>Restart</span>
-                    </button>
-                    <button id="clear-outputs-button" class="toolbar-button" title="Clear All Outputs">
-                        <span class="codicon codicon-clear-all"></span>
-                        <span>Clear All Outputs</span>
-                    </button>
-                </div>
-                <div class="toolbar-spacer"></div>
-                <div class="toolbar-actions-right">
-                    <div id="kernel-status-container">
-                        <span id="kernel-indicator-icon"></span>
-                        <span id="kernel-indicator-name">Not Selected</span>
+            <div id="shortcut-overlay">
+                <ul>
+                    <li><kbd>Cmd/Ctrl + B</kbd><span>Toggle Sidebar</span></li>
+                    <li><kbd>Cmd/Ctrl + Enter</kbd><span>Run Cell</span></li>
+                    <li><kbd>Esc</kbd><span>Exit Presentation Mode</span></li>
+                    <li><kbd class="arrow-key">&lt;</kbd><span>Previous Slide</span></li>
+                    <li><kbd class="arrow-key">&gt;</kbd><span>Next Slide</span></li>
+                </ul>
+            </div>
+            <div id="toolbar-container">
+                <div id="main-toolbar">
+                    <div class="toolbar-actions-left">
+                        <button id="run-all-button" class="toolbar-button" title="Run All Cells">
+                            <span class="codicon codicon-run-all"></span>
+                            <span>Run All</span>
+                        </button>
+                        <button id="restart-kernel-button" class="toolbar-button" title="Restart Kernel">
+                            <span class="codicon codicon-refresh"></span>
+                            <span>Restart</span>
+                        </button>
+                        <button id="clear-outputs-button" class="toolbar-button" title="Clear All Outputs">
+                            <span class="codicon codicon-clear-all"></span>
+                            <span>Clear All Outputs</span>
+                        </button>
+                    </div>
+                    <div class="toolbar-group-center">
+                        <button id="fullscreen-button" class="toolbar-button" title="Presentation Mode">
+                            <span class="codicon codicon-screen-full"></span>
+                            <span>Present</span>
+                        </button>
+                    </div>
+                    <div class="toolbar-actions-right">
+                        <div id="kernel-status-container">
+                            <span id="kernel-indicator-icon"></span>
+                            <span id="kernel-indicator-name">Not Selected</span>
+                        </div>
                     </div>
                 </div>
             </div>
-
             <div id="main-view-wrapper">
                 <div class="slide-positioning-context">
                     <div id="add-slide-left-container" class="side-add-slide-container">

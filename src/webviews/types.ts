@@ -42,8 +42,11 @@ export interface AddCellAfterMessage {
     };
 }
 
+export interface TogglePresentationModeMessage { type: 'togglePresentationMode'; }
+
 export type MessageToExtension =
       AddCellBeforeMessage
+    | TogglePresentationModeMessage
     | AddCellAfterMessage
     | KernelSelectionMessage
     | ReadyMessage
@@ -89,6 +92,7 @@ export interface SlidePayload {
     controllerName: string;
     executionSuccess: boolean;
     kernelStatus?: 'idle' | 'busy';
+    isInPresentationMode?: boolean;
 }
 
 

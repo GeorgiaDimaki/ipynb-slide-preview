@@ -77,6 +77,21 @@ export const EditorManager = {
         this.activeEditorInfo = null;
         clearTimeout(this.debounceTimer);
     },
+    
+    /**
+     * If a markdown editor is currently active, this function triggers the
+     * logic to render it back to its HTML view.
+     */
+    renderActiveMarkdownEditor: function() {
+        // Check if the active editor is for a markdown cell
+        if (this.activeEditor && this.activeEditorInfo?.cellType === 'markdown') {
+            console.log('[EditorManager] Rendering active markdown editor before presentation.');
+            // The simplest way to render is to programmatically click the toggle/render button,
+            // which already contains the necessary logic.
+            const button = this.activeEditorInfo.cellContainer.parentElement?.querySelector('.markdown-toggle-edit-button');
+            (button as HTMLElement)?.click();
+        }
+    },
 
     /**
      * Creates a new editor for a cell, replacing any existing one.
@@ -121,39 +136,15 @@ export const EditorManager = {
             this.commitChanges();
         });
 
-        // 3. Editor-specific keyboard shortcuts
-        editor.onKeyDown(e => {
-            const isMac = navigator.platform.toUpperCase().includes('MAC');
-            const isUndo = (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ;
-            let isRedo = false;
-            if (isMac) {
-                // On Mac, Redo is Cmd+Shift+Z
-                isRedo = e.metaKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ;
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+            if (language === 'markdown') {
+                // For markdown, "Run" means commit and switch to render view.
+                const button = this.activeEditorInfo?.cellContainer.parentElement?.querySelector('.markdown-toggle-edit-button');
+                (button as HTMLElement)?.click();
             } else {
-                // On Windows/Linux, Redo is typically Ctrl+Y, but Ctrl+Shift+Z is also common
-                isRedo = (e.ctrlKey && e.keyCode === monaco.KeyCode.KeyY) || (e.ctrlKey && e.shiftKey && e.keyCode === monaco.KeyCode.KeyZ);
-            }
-            const isRunOrRender = (isMac ? e.metaKey : e.ctrlKey) && e.keyCode === monaco.KeyCode.Enter;
-
-            if (isUndo) {
-                e.preventDefault(); e.stopPropagation();
-                vscode.postMessage({ type: 'requestGlobalUndo' });
-            } else if (isRedo) {
-                e.preventDefault(); e.stopPropagation();
-                vscode.postMessage({ type: 'requestGlobalRedo' });
-            } else if (isRunOrRender) {
-                e.preventDefault(); e.stopPropagation();
-                
-                if (language === 'markdown') {
-                    // For markdown, "Run" means commit and switch to render view.
-                    // We find the toggle button on the parent toolbar and simulate a click.
-                    const button = this.activeEditorInfo?.cellContainer.parentElement?.querySelector('.markdown-toggle-edit-button');
-                    (button as HTMLElement)?.click();
-                } else {
-                    // For code, "Run" means execute the cell.
-                    this.commitChanges(); // Commit latest changes before running
-                    vscode.postMessage({ type: 'runCell', payload: { slideIndex: this.activeEditorInfo!.slideIndex } });
-                }
+                // For code, "Run" means execute the cell.
+                this.commitChanges(); // Commit latest changes before running
+                vscode.postMessage({ type: 'runCell', payload: { slideIndex: this.activeEditorInfo!.slideIndex } });
             }
         });
 

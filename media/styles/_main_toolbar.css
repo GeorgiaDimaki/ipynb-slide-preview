@@ -2,6 +2,7 @@
 #main-toolbar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     height: 35px;
     padding: 0 10px;
     border-bottom: 1px solid var(--vscode-editorWidget-border, #454545);
@@ -53,4 +54,10 @@
 .toolbar-button .codicon {
   margin-right: 6px;
   font-size: 16px; /* Adjust icon size as needed */
+}
+
+.toolbar-group-center {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
 }

@@ -11,6 +11,7 @@ import 'monaco-editor/min/vs/editor/editor.main.css';
 // Import your custom CSS files
 import '../../media/styles/_base.css';
 import '../../media/styles/_layout.css';
+import '../../media/styles/_presentation_mode.css';
 import '../../media/styles/_cell_general.css';
 import '../../media/styles/_cell_toolbar.css';
 import '../../media/styles/_markdown_cell.css';
@@ -89,6 +90,8 @@ if (kernelStatusContainer) {
     });
 }
 
+let hasShownShortcutOverlay = false;
+
 window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) => {
     const message = event.data;
     console.log('[PreviewScript] Received message:', message.type, message.payload);
@@ -97,19 +100,19 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
             if (message.payload) {
                 lastReceivedPayload = message.payload;
                 currentPayloadSlideIndex = message.payload.slideIndex;
-
+                        
                 if (kernelStatusContainer) {
                     if (message.payload.kernelStatus === 'busy') {
                         // When busy, show the spinner and a temporary message.
                         kernelStatusContainer.innerHTML = `
-                            <span class="codicon codicon-sync spin"></span>
-                            <span id="kernel-indicator-name">Connecting...</span>
+                        <span class="codicon codicon-sync spin"></span>
+                        <span id="kernel-indicator-name">Connecting...</span>
                         `;
                     } else { 
                         // When idle, show the final kernel name.
                         // This also correctly handles the initial state.
                         kernelStatusContainer.innerHTML = `
-                            <span id="kernel-indicator-name">${message.payload.controllerName || 'Select Kernel'}</span>
+                        <span id="kernel-indicator-name">${message.payload.controllerName || 'Select Kernel'}</span>
                         `;
                     }
                 }
@@ -122,13 +125,32 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
                 if (kernelNameSpan && message.payload.controllerName) {
                     kernelNameSpan.textContent = message.payload.controllerName;
                 }
-
+                
                 const cellContainer = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"]`);
                 const runButton = cellContainer?.querySelector('.run-button') as HTMLButtonElement | null;
                 if (runButton) {
                     runButton.disabled = false;
                 }
-            
+                
+                // Add/remove a class to the body based on the presentation state
+                if (message.payload.isInPresentationMode) {
+                    document.body.classList.add('is-presenting');
+                    
+                    const overlay = document.getElementById('shortcut-overlay');
+                    if (overlay && !hasShownShortcutOverlay) {
+                        overlay.classList.add('visible');
+                        hasShownShortcutOverlay = true;
+                        setTimeout(() => {
+                            overlay.classList.remove('visible');
+                        }, 4000); // Hide after 4 seconds
+                    }
+                } else {
+                    document.body.classList.remove('is-presenting');
+                    hasShownShortcutOverlay = false;
+                }
+                
+                setPresentationButtonState(message.payload.isInPresentationMode ?? false);
+                
             } else {
                 console.warn('[PreviewScript] updateSlide message received with no payload.');
             }
@@ -179,6 +201,26 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
             vscode.postMessage({ type: 'next' });
             event.preventDefault(); // Prevent default browser action
             break;
+        case 'Escape':
+            // Only exit if we are currently in presentation mode
+            if (document.body.classList.contains('is-presenting')) {
+                vscode.postMessage({ type: 'togglePresentationMode' });
+                event.preventDefault();
+            }
+            break;
+         case 'Enter': {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            // Check if Ctrl (or Cmd on Mac) is pressed
+            if (isMac ? event.metaKey : event.ctrlKey) {
+                // Check if we have a valid slide index
+                if (typeof currentPayloadSlideIndex === 'number') {
+                    console.log(`[PreviewScript] Global Ctrl+Enter pressed, running slide ${currentPayloadSlideIndex}`);
+                    vscode.postMessage({ type: 'runCell', payload: { slideIndex: currentPayloadSlideIndex } });
+                    event.preventDefault(); // Prevent any default browser action
+                }
+            }
+            break;
+        }
         // Add other keys if needed, e.g., Space for next, Shift+Space for previous
         // case ' ':
         //     vscode.postMessage({ type: 'next' });
@@ -187,36 +229,17 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
     }
 });
 
-function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainerElement: HTMLDivElement): HTMLDivElement {
+function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainerElement: HTMLDivElement): { toolbar: HTMLDivElement, executionStatusDiv: HTMLDivElement | null } {
     const toolbar = document.createElement('div');
     toolbar.className = 'cell-toolbar';
 
-    
-    // This spacer will push subsequent items to the right if a run button isn't present
-    // or if we want more explicit control than just margin-right: auto on the run button.
-    // An alternative is to have two groups of buttons, one left-aligned, one right-aligned.
-    // For now, margin-right: auto on .run-button is simpler. If no run button, delete will be on left.
-    // To ensure delete is always on the right, we need a different flex setup or a spacer.
-
-    // Let's refine for: Run button always left (if present). Other buttons always right.
-    // We can achieve this by having a left group and a right group, and a spacer.
-    // Or, simpler: one button with margin-right: auto, and others naturally flow after.
-    // The current CSS targets .run-button with margin-right: auto.
-    // If there's no run button, the delete button will be the first item.
-    // If we want Delete to always be on the right, we need a different approach.
-
-    // Simpler approach for now: Keep all buttons together and use justify-content on toolbar.
-    // For "Run left, others right":
-    // 1. Add Run button
-    // 2. Add a spacer div with flex-grow: 1
-    // 3. Add other buttons (Delete, More)
-
-    // Let's refine:
     const leftActions = document.createElement('div');
     leftActions.className = 'toolbar-actions-left'; // Style this with display:flex
 
     const rightActions = document.createElement('div');
     rightActions.className = 'toolbar-actions-right'; // Style this with display:flex
+
+    let executionStatusDiv: HTMLDivElement | null = null;
 
     // Add "Run" button for code cells (will be pushed to the left by CSS)
     if (cell.cell_type === 'code') {
@@ -227,13 +250,13 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         // 2. Create and add the Run button
         const runButton = document.createElement('button');
         runButton.className = 'cell-action-button run-button';
-        runButton.textContent = '▶ Run';
+        runButton.innerHTML = `▶ <span class="run-text">Run</span>`;
         runButton.title = 'Run Cell';
         // (We will add the onclick handler in Step 3)
         runContainer.appendChild(runButton);
 
         // 3. Create and add the placeholder for the status
-        const executionStatusDiv = document.createElement('div');
+        executionStatusDiv = document.createElement('div');
         executionStatusDiv.className = 'execution-status';
 
         // Check if there's persistent execution data in the cell's metadata
@@ -245,17 +268,14 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
             executionStatusDiv.innerHTML = `${icon} ${executionResult.duration}`;
         }
 
-        runContainer.appendChild(executionStatusDiv);
-
         // 4. Add the whole container to the toolbar
         leftActions.appendChild(runContainer);
 
         // 5. Assign the onclick handler now that all elements exist
         runButton.onclick = () => {
             // Find the status div and show the spinner
-            const statusDiv = runContainer.querySelector('.execution-status');
-            if (statusDiv) {
-                statusDiv.innerHTML = '<div class="spinner"></div>';
+            if (executionStatusDiv) { // Check if the div exists
+                executionStatusDiv.innerHTML = '<div class="spinner"></div>';
             }
             runButton.disabled = true;
             vscode.postMessage({ type: 'runCell', payload: { slideIndex } });
@@ -306,8 +326,7 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
     toolbar.appendChild(spacer);
     toolbar.appendChild(rightActions);
     
-    
-    return toolbar;
+    return { toolbar, executionStatusDiv };
 }
 
 // This function determines the Monaco theme and applies it.
@@ -362,8 +381,20 @@ function renderSlide(payload: SlidePayload): void {
         // --- 2. Re-bind Toolbar Listeners (if needed) ---
         const oldToolbar = cellContainerDiv.querySelector('.cell-toolbar');
         if (oldToolbar) {
-            const newToolbar = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
+            // Get both the new toolbar and the new status div
+            const { toolbar: newToolbar, executionStatusDiv: newExecutionStatusDiv } = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
             oldToolbar.replaceWith(newToolbar);
+
+            const cellBody = cellContainerDiv.querySelector('.code-cell-body') || cellContainerDiv.querySelector('.markdown-cell-body');
+            if (cellBody) {
+                // Remove the old status div if it exists
+                const oldStatusDiv = cellBody.querySelector('.execution-status');
+                oldStatusDiv?.remove();
+                // Append the new one if it was created
+                if (newExecutionStatusDiv) {
+                    cellBody.appendChild(newExecutionStatusDiv);
+                }
+            }
         }
 
         // --- 3. Render Outputs ---
@@ -449,7 +480,7 @@ function renderSlide(payload: SlidePayload): void {
     cellContainerDiv.className = `cell ${cell.cell_type}-cell`; // Dynamic class for cell type
     cellContainerDiv.dataset.slideIndex = payload.slideIndex.toString();
 
-    const toolbar = createCellToolbar(cell.cell_type === 'code' ? cell : payload.cell as MarkdownCell, payload.slideIndex, cellContainerDiv);
+    const { toolbar, executionStatusDiv } = createCellToolbar(cell, payload.slideIndex, cellContainerDiv);
     cellContainerDiv.appendChild(toolbar);
 
     if (cell.cell_type === 'markdown') {
@@ -491,6 +522,11 @@ function renderSlide(payload: SlidePayload): void {
                 bodyDiv.appendChild(outputWrapperDiv);
             }
         }
+
+        if (executionStatusDiv) {
+            bodyDiv.appendChild(executionStatusDiv);
+        }
+        
         cellContainerDiv.appendChild(bodyDiv);
 
         let monacoTheme = 'vs-dark'; // Default to dark
@@ -687,3 +723,35 @@ if (restartKernelButton) {
         vscode.postMessage({ type: 'restartKernel' });
     });
 }
+
+const fullscreenButton = document.getElementById('fullscreen-button');
+
+// This function updates the button's look based on the current mode
+function setPresentationButtonState(isPresenting: boolean) {
+    if (!fullscreenButton) {return;}
+    const icon = fullscreenButton.querySelector('.codicon');
+    const text = fullscreenButton.querySelector('span:not(.codicon)');
+    if (!icon || !text) {return;}
+
+    if (isPresenting) {
+        icon.className = 'codicon codicon-screen-normal';
+        text.textContent = 'Exit';
+    } else {
+        icon.className = 'codicon codicon-screen-full';
+        text.textContent = 'Present';
+    }
+}
+
+// When the button is clicked, toggle the state immediately AND notify the extension
+fullscreenButton?.addEventListener('click', () => {
+    // Optimistically update the UI without waiting for the extension
+    const icon = fullscreenButton.querySelector('.codicon');
+    const isCurrentlyPresenting = icon?.classList.contains('codicon-screen-normal') ?? false;
+    setPresentationButtonState(!isCurrentlyPresenting); // Toggle to the opposite state
+
+    // Before entering presentation mode, render any active markdown editor.
+    EditorManager.renderActiveMarkdownEditor();
+    
+    // Now, tell the extension to perform the actual action
+    vscode.postMessage({ type: 'togglePresentationMode' });
+});
