@@ -30,3 +30,13 @@
     flex-grow: 1;
     position: relative; /* Often required for Monaco's layout engine */
 }
+
+.execution-count {
+    position: absolute;
+    bottom: 8px;
+    left: 15px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    user-select: none;
+}

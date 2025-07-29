@@ -25,6 +25,11 @@ body.is-presenting .execution-status {
     right: 25px;
 }
 
+body.is-presenting .execution-count {
+    bottom: 18px; 
+    left: 25px;
+}
+
 /* Hide the bottom controls completely in presentation mode. */
 /* You can comment out this rule if you decide you want to keep them. */
 body.is-presenting #controls {

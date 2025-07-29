@@ -10491,6 +10491,10 @@ body.is-presenting .execution-status {
   bottom: 18px;
   right: 25px;
 }
+body.is-presenting .execution-count {
+  bottom: 18px;
+  left: 25px;
+}
 body.is-presenting #controls {
   display: none;
 }
@@ -10780,6 +10784,15 @@ body.is-presenting .code-cell-body {
 .code-editor-container {
   flex-grow: 1;
   position: relative;
+}
+.execution-count {
+  position: absolute;
+  bottom: 8px;
+  left: 15px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
 }
 
 /* media/styles/_code_editor.css */

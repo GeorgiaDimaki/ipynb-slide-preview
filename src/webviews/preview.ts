@@ -397,6 +397,15 @@ function renderSlide(payload: SlidePayload): void {
             }
         }
 
+        const executionCountDiv = cellContainerDiv.querySelector('.execution-count');
+        if (executionCountDiv && payload.cell.cell_type === 'code') {
+            if (payload.cell.execution_count) {
+                executionCountDiv.textContent = `[${payload.cell.execution_count}]`;
+            } else {
+                executionCountDiv.textContent = '[ ]';
+            }
+        }
+
         // --- 3. Render Outputs ---
         if (payload.cell.cell_type === 'code') {
             const codeCell = payload.cell as CodeCell;
@@ -527,6 +536,16 @@ function renderSlide(payload: SlidePayload): void {
             bodyDiv.appendChild(executionStatusDiv);
         }
         
+
+        const executionCountDiv = document.createElement('div');
+        executionCountDiv.className = 'execution-count';
+        if (cell.execution_count) {
+            executionCountDiv.textContent = `[${cell.execution_count}]`;
+        } else {
+            executionCountDiv.textContent = '[ ]';
+        }
+        bodyDiv.appendChild(executionCountDiv);
+
         cellContainerDiv.appendChild(bodyDiv);
 
         let monacoTheme = 'vs-dark'; // Default to dark

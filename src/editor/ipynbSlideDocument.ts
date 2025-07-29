@@ -62,7 +62,8 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
     readonly uri: vscode.Uri;
     private _documentData: IpynbData;
     private _currentSlideIndex: number = 0;
-
+    private _executionOrder: number = 0;
+    
     private readonly _onDidChangeContent = new vscode.EventEmitter<void>();
     public readonly onDidChangeContent = this._onDidChangeContent.event;
 
@@ -106,6 +107,15 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         this._onDidChangeDocument.dispose();
     }
 
+    public resetExecutionOrder(): void {
+        this._executionOrder = 0;
+        this._documentData.cells.forEach(cell => {
+            if (cell.cell_type === 'code') {
+                cell.execution_count = null;
+            }
+        });
+        this._onDidChangeContent.fire();
+    }
     // --- Custom Properties and Methods ---
 
     get cells(): ReadonlyArray<IpynbCell> {
@@ -519,16 +529,14 @@ export class IpynbSlideDocument implements vscode.CustomDocument {
         const cell = this._documentData.cells[index];
         if (cell.cell_type !== 'code') {return;}
 
-        // 1. Save the original state of just this cell for the undo action.
-        const originalCellState = JSON.parse(JSON.stringify(cell));
-
-        // 2. Apply all new data to the cell.
+        this._executionOrder++;
+        cell.execution_count = this._executionOrder;
+        
         cell.outputs = outputs;
-        cell.execution_count = (cell.execution_count || 0) + 1;
         if (!cell.metadata) {cell.metadata = {};}
         cell.metadata.slide_show_editor = { execution: executionData };
 
-        // 3. Fire the events.
+        
         this._onDidChangeContent.fire();
         
     }

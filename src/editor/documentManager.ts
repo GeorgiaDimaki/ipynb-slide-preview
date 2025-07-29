@@ -154,6 +154,7 @@ export class DocumentManager {
             return;
         }
         this.document.clearAllOutputs();
+        this.document.resetExecutionOrder();
     }
 
     public restartKernel(): Promise<void> {
@@ -180,6 +181,7 @@ export class DocumentManager {
                 await new Promise(resolve => setTimeout(resolve, 300));
 
                 // The notification will automatically disappear when this function completes.
+                this.document.resetExecutionOrder();
             });
         });
     }
