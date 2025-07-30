@@ -166,19 +166,12 @@ export class DocumentManager {
                 cancellable: false // The user cannot cancel this operation
             }, async (progress) => {
                 
-                // Step 1: Restart the kernel via the strategy
+                // Restart the kernel via the strategy
                 progress.report({ message: "Sending restart request to server..." });
                 await (this.executionStrategy as BackgroundNotebookProxyStrategy).restartKernel();
 
                 // A brief pause so the user can read the message before the next step
                 await new Promise(resolve => setTimeout(resolve, 400));
-
-                // Step 2: Clear all outputs in the document
-                progress.report({ message: "Clearing all cell outputs..." });
-                this.document.clearAllOutputs();
-
-                // Another brief pause for readability
-                await new Promise(resolve => setTimeout(resolve, 300));
 
                 // The notification will automatically disappear when this function completes.
                 this.document.resetExecutionOrder();
