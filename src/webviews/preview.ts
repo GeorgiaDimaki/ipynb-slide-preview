@@ -153,7 +153,7 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
                 if (clearOutputsButton) {
                     clearOutputsButton.disabled = !message.payload.hasAnyOutputs;
                 }
-                
+
                 setPresentationButtonState(message.payload.isInPresentationMode ?? false);
                 
             } else {
@@ -307,8 +307,9 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
 
     const deleteButton = document.createElement('button');
     deleteButton.className = 'cell-action-button delete-button';
-    deleteButton.textContent = '🗑 Delete';
     deleteButton.title = 'Delete Cell';
+    deleteButton.innerHTML = `<span class="codicon codicon-trash"></span>`;
+    
     deleteButton.onclick = () => {
         console.log(`[PreviewScript] Posting 'requestDeleteConfirmation' for index ${slideIndex}`);
         vscode.postMessage({ type: 'requestDeleteConfirmation', payload: { slideIndex } });
