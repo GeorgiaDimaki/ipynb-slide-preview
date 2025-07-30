@@ -508,6 +508,23 @@ function renderSlide(payload: SlidePayload): void {
         renderedContentDiv.className = 'markdown-content';
         renderedContentDiv.innerHTML = marked.parse(sourceToString(cell.source)) as string;
         renderedContentDiv.style.display = '';
+        renderedContentDiv.addEventListener('dblclick', () => {
+
+            // If the body has the 'is-presenting' class, do nothing.
+            if (document.body.classList.contains('is-presenting')) {
+                return;
+            }
+            
+            let monacoTheme = 'vs-dark'; // Default to dark
+            if (document.body.classList.contains('vscode-light')) {
+                monacoTheme = 'vs';
+            } else if (document.body.classList.contains('vscode-high-contrast')) {
+                monacoTheme = 'hc-black';
+            }
+            // This calls the same function that the "Edit" button uses
+            EditorManager.toggleMarkdownEdit(payload.slideIndex, cellContainerDiv, cell, monacoTheme);
+        });
+
         bodyDiv.appendChild(renderedContentDiv);
         
         // This container is a placeholder for where the editor will go when toggled.
