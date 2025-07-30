@@ -188,18 +188,16 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 case 'requestDeleteConfirmation':
                     if (message.payload && typeof message.payload.slideIndex === 'number') {
                         const slideIndex = message.payload.slideIndex;
-                        vscode.window.showWarningMessage(
-                            `Are you sure you want to delete slide ${slideIndex + 1}?`,
-                            { modal: true },
-                            "Delete"
-                        ).then(selection => {
-                            if (selection === "Delete") {
-                                console.log(`[Provider] User confirmed deletion for slide: ${slideIndex}`);
-                                document.deleteCell(slideIndex);
-                            } else {
-                                console.log(`[Provider] User cancelled deletion for slide: ${slideIndex}`);
-                            }
-                        });
+                        
+                        console.log(`[Provider] Deleting slide: ${slideIndex}`);
+                        document.deleteCell(slideIndex);
+
+                        const isMac = process.platform === 'darwin';
+                        const shortcut = isMac ? 'Cmd+Z' : 'Ctrl+Z';
+
+                        // This message has no button and will disappear on its own
+                        vscode.window.showInformationMessage(`Slide ${slideIndex + 1} deleted. Use ${shortcut} to undo.`);    
+                
                     } else {
                         console.warn('[Provider] Invalid payload for requestDeleteConfirmation message:', message.payload);
                     }
