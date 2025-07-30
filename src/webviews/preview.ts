@@ -797,3 +797,17 @@ fullscreenButton?.addEventListener('click', () => {
     // Now, tell the extension to perform the actual action
     vscode.postMessage({ type: 'togglePresentationMode' });
 });
+
+const undoButton = document.getElementById('undo-button');
+if (undoButton) {
+    undoButton.addEventListener('click', () => {
+        vscode.postMessage({ type: 'requestGlobalUndo' });
+    });
+}
+
+const redoButton = document.getElementById('redo-button');
+if (redoButton) {
+    redoButton.addEventListener('click', () => {
+        vscode.postMessage({ type: 'requestGlobalRedo' });
+    });
+}

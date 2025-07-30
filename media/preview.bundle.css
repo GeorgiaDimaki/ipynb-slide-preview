@@ -10952,6 +10952,9 @@ body.is-presenting .code-cell-body {
 .toolbar-spacer {
   flex-grow: 1;
 }
+.icon-flip {
+  transform: scaleX(-1);
+}
 #kernel-status-container {
   display: flex;
   align-items: center;
@@ -10991,6 +10994,15 @@ body.is-presenting .code-cell-body {
   flex-grow: 1;
   display: flex;
   justify-content: center;
+}
+#undo-button,
+#redo-button {
+  padding: 2px 4px;
+  margin-right: 2px;
+}
+#undo-button .codicon,
+#redo-button .codicon {
+  margin-right: 0;
 }
 /*! Bundled license information:
 

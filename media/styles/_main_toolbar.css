@@ -19,6 +19,10 @@
     flex-grow: 1;
 }
 
+.icon-flip {
+    transform: scaleX(-1);
+}
+
 #kernel-status-container {
     display: flex;
     align-items: center;
@@ -52,6 +56,7 @@
   border-radius: 4px;
 }
 
+
 .toolbar-button:hover {
   background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -65,4 +70,18 @@
     flex-grow: 1;
     display: flex;
     justify-content: center;
+}
+
+/* This rule makes the Undo/Redo buttons more compact */
+#undo-button,
+#redo-button {
+  /* Use a more explicit padding: 2px top/bottom, 4px left/right */
+  padding: 2px;
+  margin-right: 2px; /* Reduces space between the buttons */
+}
+
+/* This rule removes the space intended for text, centering the icon */
+#undo-button .codicon,
+#redo-button .codicon {
+  margin-right: 0;
 }

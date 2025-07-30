@@ -499,6 +499,12 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             <div id="toolbar-container">
                 <div id="main-toolbar">
                     <div class="toolbar-actions-left">
+                        <button id="undo-button" class="toolbar-button" title="Undo">
+                            <span class="codicon codicon-redo icon-flip"></span>
+                        </button>
+                        <button id="redo-button" class="toolbar-button" title="Redo">
+                            <span class="codicon codicon-redo"></span>
+                        </button>
                         <button id="run-all-button" class="toolbar-button" title="Run All Cells">
                             <span class="codicon codicon-run-all"></span>
                             <span>Run All</span>
