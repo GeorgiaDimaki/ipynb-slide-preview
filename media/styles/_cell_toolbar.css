@@ -2,12 +2,12 @@
 .cell-toolbar {
     display: flex;
     /* This aligns the top of the Run/Delete buttons */
-    align-items: flex-start; 
+    align-items: center; 
     /* This gives the toolbar a consistent height across ALL slides,
         preventing layout shift between Markdown and Code cells. */
-    min-height: 60px; 
+    min-height: 40px; 
     /* padding: 0 10px; Horizontal padding for buttons */
-    padding: 4px;
+    padding: 0 8px;
     flex-shrink: 0; /* This is important: prevents the toolbar from shrinking */
     background-color: var(--vscode-editorGroupHeader-tabsBackground, #2c2c2c); /* Toolbar distinct background */
     border-bottom: 1px solid var(--vscode-notebook-cellBorderColor, var(--vscode-editorGroup-border, #373737));
