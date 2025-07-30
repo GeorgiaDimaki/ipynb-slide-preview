@@ -92,9 +92,9 @@ export interface SlidePayload {
     controllerName: string;
     executionSuccess: boolean;
     kernelStatus?: 'idle' | 'busy';
+    hasAnyOutputs?: boolean; // Add this line
     isInPresentationMode?: boolean;
 }
-
 
 // OUTPUT TYPES
 export interface StreamOutput { output_type: 'stream'; name: 'stdout' | 'stderr'; text: Source; }

@@ -436,7 +436,9 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         }
         
         console.log(`[Provider] Updating webview. Sending controllerName: '${controllerName}'`);
-
+        const hasAnyOutputs = document.cells.some(cell => 
+            cell.cell_type === 'code' && cell.outputs && cell.outputs.length > 0
+        );
     
         console.log(`[Provider] Sending slide ${document.currentSlideIndex} to webview for ${document.uri.fsPath}. Lang: ${notebookLanguage}`);
         webviewPanel.webview.postMessage({
@@ -448,6 +450,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 notebookLanguage: notebookLanguage,
                 controllerName: controllerName,
                 executionSuccess: executionSuccess,
+                hasAnyOutputs: hasAnyOutputs,
                 isInPresentationMode: manager?.isInPresentationMode,
                 ...overridePayload
             }

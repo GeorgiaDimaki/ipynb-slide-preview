@@ -10945,6 +10945,10 @@ body.is-presenting .code-cell-body {
   background-color: var(--vscode-editor-background);
   flex-shrink: 0;
 }
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .toolbar-spacer {
   flex-grow: 1;
 }

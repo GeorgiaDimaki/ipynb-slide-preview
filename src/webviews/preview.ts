@@ -149,6 +149,11 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
                     hasShownShortcutOverlay = false;
                 }
                 
+                const clearOutputsButton = document.getElementById('clear-outputs-button') as HTMLButtonElement | null;
+                if (clearOutputsButton) {
+                    clearOutputsButton.disabled = !message.payload.hasAnyOutputs;
+                }
+                
                 setPresentationButtonState(message.payload.isInPresentationMode ?? false);
                 
             } else {
