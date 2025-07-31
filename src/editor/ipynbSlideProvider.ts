@@ -461,6 +461,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
         const monacoStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.main.css')); // If using manual Monaco CSS copy
         const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'codicon.css'));
 
+        const isMac = process.platform === 'darwin';
         const nonce = getNonce();
 
         const csp = `
@@ -487,6 +488,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
             </head>
             <body>
+            <div id="custom-tooltip-wrapper"></div>
             <div id="shortcut-overlay">
                 <ul>
                     <li><kbd>Cmd/Ctrl + B</kbd><span>Toggle Sidebar</span></li>
@@ -499,27 +501,27 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             <div id="toolbar-container">
                 <div id="main-toolbar">
                     <div class="toolbar-actions-left">
-                        <button id="undo-button" class="toolbar-button" title="Undo">
+                        <button id="undo-button" class="toolbar-button" data-tooltip="${isMac ? 'Undo (⌘Z)' : 'Undo (Ctrl+Z)'}">
                             <span class="codicon codicon-redo icon-flip"></span>
                         </button>
-                        <button id="redo-button" class="toolbar-button" title="Redo">
+                        <button id="redo-button" class="toolbar-button" data-tooltip="${isMac ? 'Redo (⇧⌘Z)' : 'Redo (Ctrl+Y)'}">
                             <span class="codicon codicon-redo"></span>
                         </button>
-                        <button id="run-all-button" class="toolbar-button" title="Run All Cells">
+                        <button id="run-all-button" class="toolbar-button" data-tooltip="Run All Cells">
                             <span class="codicon codicon-run-all"></span>
                             <span>Run All</span>
                         </button>
-                        <button id="restart-kernel-button" class="toolbar-button" title="Restart Kernel">
+                        <button id="restart-kernel-button" class="toolbar-button" data-tooltip="Restart Kernel">
                             <span class="codicon codicon-refresh"></span>
                             <span>Restart</span>
                         </button>
-                        <button id="clear-outputs-button" class="toolbar-button" title="Clear All Outputs">
+                        <button id="clear-outputs-button" class="toolbar-button" data-tooltip="Clear All Outputs">
                             <span class="codicon codicon-clear-all"></span>
                             <span>Clear All Outputs</span>
                         </button>
                     </div>
                     <div class="toolbar-group-center">
-                        <button id="fullscreen-button" class="toolbar-button" title="Presentation Mode">
+                        <button id="fullscreen-button" class="toolbar-button" data-tooltip="Presentation Mode">
                             <span class="codicon codicon-screen-full"></span>
                             <span>Present</span>
                         </button>
@@ -561,11 +563,11 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
             </div>
 
             <div id="controls">
-                <button id="prev-button" title="Previous Slide">
+                <button id="prev-button" data-tooltip="Previous Slide (←)">
                     <span class="codicon codicon-chevron-left"></span>
                 </button>
                 <span id="slide-indicator"></span>
-                <button id="next-button" title="Next Slide">
+                <button id="next-button" data-tooltip="'Next Slide (→)'">
                     <span class="codicon codicon-chevron-right"></span>
                 </button>
             </div>

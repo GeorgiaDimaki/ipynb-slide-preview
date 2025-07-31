@@ -256,7 +256,11 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         const runButton = document.createElement('button');
         runButton.className = 'cell-action-button run-button';
         runButton.innerHTML = `▶ <span class="run-text">Run</span>`;
-        runButton.title = 'Run Cell';
+
+        const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+        const shortcut = isMac ? '⌘↩' : 'Ctrl+Enter';
+        runButton.dataset.tooltip = `Run Cell (${shortcut})`;
+
         // (We will add the onclick handler in Step 3)
         runContainer.appendChild(runButton);
 
@@ -289,7 +293,7 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
         const toggleEditButton = document.createElement('button');
         toggleEditButton.className = 'cell-action-button markdown-toggle-edit-button';
         
-        toggleEditButton.title = 'Edit Markdown';
+        toggleEditButton.dataset.tooltip = 'Edit Markdown';
         toggleEditButton.onclick = () => {
             const body = cellContainerElement.querySelector('.markdown-cell-body');
             if (body) {
@@ -307,7 +311,7 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
 
     const deleteButton = document.createElement('button');
     deleteButton.className = 'cell-action-button delete-button';
-    deleteButton.title = 'Delete Cell';
+    deleteButton.dataset.tooltip = 'Delete Cell';
     deleteButton.innerHTML = `<span class="codicon codicon-trash"></span>`;
     
     deleteButton.onclick = () => {
@@ -778,9 +782,11 @@ function setPresentationButtonState(isPresenting: boolean) {
     if (isPresenting) {
         icon.className = 'codicon codicon-screen-normal';
         text.textContent = 'Exit';
+        fullscreenButton.dataset.tooltip = `Exit (${/Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? '⎋' : 'Esc'})`;
     } else {
         icon.className = 'codicon codicon-screen-full';
         text.textContent = 'Present';
+        fullscreenButton.dataset.tooltip = 'Presentation Mode';
     }
 }
 
@@ -811,3 +817,61 @@ if (redoButton) {
         vscode.postMessage({ type: 'requestGlobalRedo' });
     });
 }
+
+
+// --- Global Custom Tooltip Logic ---
+const tooltip = document.getElementById('custom-tooltip-wrapper') as HTMLDivElement;
+let tooltipHideTimeout: number;
+
+
+// Show tooltip on mouseover
+
+window.addEventListener('mouseover', (event) => {
+    const target = event.target as HTMLElement;
+    const tooltipTarget = target.closest('[data-tooltip]');
+
+    if (!tooltipTarget || !tooltip) {
+        return;
+    }
+    
+    const tooltipText = tooltipTarget.getAttribute('data-tooltip');
+    tooltip.textContent = tooltipText;
+
+    const targetRect = tooltipTarget.getBoundingClientRect();
+    
+    // Set style to get accurate dimensions
+    tooltip.style.display = 'block';
+    const tooltipRect = tooltip.getBoundingClientRect();
+    tooltip.style.display = '';
+
+    // Position it below the button
+    const top = targetRect.bottom + 8; // 8px margin below the button
+    let left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+
+    // Prevent tooltip from going off-screen
+    if (left < 5) {
+        left = 5;
+    }
+    if (left + tooltipRect.width > window.innerWidth) {
+        left = window.innerWidth - tooltipRect.width - 5;
+    }
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    
+    clearTimeout(tooltipHideTimeout);
+    tooltip.classList.add('visible');
+});
+
+// Hide tooltip on mouseout
+window.addEventListener('mouseout', (event) => {
+    const target = event.target as HTMLElement;
+    const tooltipTarget = target.closest('[data-tooltip]');
+
+    if (tooltipTarget && tooltip) {
+        // Use a timeout to delay hiding
+        tooltipHideTimeout = window.setTimeout(() => {
+            tooltip.classList.remove('visible');
+        }, 100); // A small delay
+    }
+});

@@ -115,3 +115,50 @@
 @keyframes cell-spinner-anim {
   to { transform: rotate(360deg); }
 }
+
+#custom-tooltip-wrapper {
+    /* Positioning & Visibility */
+    position: fixed;
+    display: none;
+    z-index: 10000;
+    
+    background-color: var(--vscode-menu-background);
+    color: var(--vscode-menu-foreground);
+    border: 1px solid var(--vscode-menu-border); /* Added border */
+    border-radius: 3px;
+    padding: 5px 9px;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    
+    pointer-events: none;
+}
+
+#custom-tooltip-wrapper.visible {
+    display: block;
+}
+
+/* This creates the border of the pointer triangle */
+#custom-tooltip-wrapper::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: transparent transparent var(--vscode-menu-border) transparent;
+}
+
+/* This creates the fill of the pointer triangle */
+#custom-tooltip-wrapper::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px; /* Slightly smaller to fit inside the border */
+    border-style: solid;
+    border-color: transparent transparent var(--vscode-menu-background) transparent;
+    margin-bottom: 1px; /* Lifts it up to sit inside the border */
+}

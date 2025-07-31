@@ -10668,6 +10668,44 @@ body.is-presenting .code-cell-body {
     transform: rotate(360deg);
   }
 }
+#custom-tooltip-wrapper {
+  position: fixed;
+  display: none;
+  z-index: 10000;
+  background-color: var(--vscode-menu-background);
+  color: var(--vscode-menu-foreground);
+  border: 1px solid var(--vscode-menu-border);
+  border-radius: 3px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+  pointer-events: none;
+}
+#custom-tooltip-wrapper.visible {
+  display: block;
+}
+#custom-tooltip-wrapper::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent var(--vscode-menu-border) transparent;
+}
+#custom-tooltip-wrapper::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 4px;
+  border-style: solid;
+  border-color: transparent transparent var(--vscode-menu-background) transparent;
+  margin-bottom: 1px;
+}
 
 /* media/styles/_markdown_cell.css */
 .markdown-cell .markdown-content {
@@ -10997,7 +11035,7 @@ body.is-presenting .code-cell-body {
 }
 #undo-button,
 #redo-button {
-  padding: 2px 4px;
+  padding: 2px;
   margin-right: 2px;
 }
 #undo-button .codicon,
