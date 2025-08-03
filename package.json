@@ -64,7 +64,7 @@
       {
         "command": "ipynb-slide-preview.open",
         "title": "Open with IPYNB Slide Editor",
-        "icon": "$(vm)",
+        "icon": "$(slideshow-icon)",
         "shortTitle": "Slides"
       }
     ]
