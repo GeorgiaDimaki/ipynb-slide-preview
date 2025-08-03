@@ -1,8 +1,10 @@
 {
   "name": "ipynb-slide-preview",
   "displayName": "IPYNB Slide Preview",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "license": "SEE LICENSE IN LICENSE.md",
+  "author": "Georgia Dimaki <georgia_dimaki@alum.mit.edu>",
+  "publisher": "your-publisher-id",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -70,45 +72,45 @@
     ]
   },
   "main": "./out/extension.js",
-  "publisher": "",
   "description": "A VS Code extension to preview Jupyter Notebooks as interactive slide decks",
   "categories": [
     "Other"
   ],
   "activationEvents": [
     "onCustomEditor:ipynb.slidePreview",
-    "onNotebook:jupyter-notebook"
+    "onNotebook:jupyter-notebook",
+    "onCommand:ipynb-slide-preview.open"
   ],
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "node ./build.js",
-    "package": "cross-env NODE_ENV=production node./build.js",
+    "package": "cross-env NODE_ENV=production node ./build.js",
     "watch": "npm run compile -- --watch",
     "lint": "eslint src --ext ts",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/marked": "^6.0.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
-    "@types/vscode": "^1.100.0",
-    "@typescript-eslint/eslint-plugin": "^8.28.0",
-    "@typescript-eslint/parser": "^8.28.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1",
-    "esbuild": "^0.25.3",
-    "eslint": "^9.23.0",
-    "fs-extra": "^11.3.0",
-    "typescript": "^5.8.2"
+    "@types/marked": "6.0.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "20.14.8",
+    "@types/vscode": "1.100.0",
+    "@typescript-eslint/eslint-plugin": "8.28.0",
+    "@typescript-eslint/parser": "8.28.0",
+    "@vscode/test-cli": "0.0.10",
+    "@vscode/test-electron": "2.4.1",
+    "esbuild": "0.25.3",
+    "eslint": "9.23.0",
+    "fs-extra": "11.3.0",
+    "typescript": "5.8.2"
   },
   "dependencies": {
-    "@jupyterlab/services": "^7.4.3",
-    "@types/dompurify": "^3.2.0",
-    "@types/node-fetch": "^2.6.12",
-    "@vscode/codicons": "^0.0.36",
-    "marked": "^15.0.11",
-    "monaco-editor": "^0.52.2",
-    "node-fetch": "^2.7.0",
-    "zeromq": "^6.4.2"
+    "@jupyterlab/services": "7.4.3",
+    "@types/dompurify": "3.2.0",
+    "@types/node-fetch": "2.6.12",
+    "@vscode/codicons": "0.0.36",
+    "marked": "15.0.11",
+    "monaco-editor": "0.52.2",
+    "node-fetch": "2.7.0",
+    "zeromq": "6.4.2"
   }
 }

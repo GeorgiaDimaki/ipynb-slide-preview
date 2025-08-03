@@ -52,3 +52,7 @@ Thumbs.db
 # media/*.worker.js # Monaco workers
 # media/editor.main.css 
 # Keep media/preview.css 
+temp.svg
+test.html
+media/images/palette.png
+media/images/demo.mov

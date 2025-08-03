@@ -1,15 +1,14 @@
 # IPYNB Slide Preview
 
 > The missing interactive slide show for Jupyter in VS Code. Your notebook **is** the presentation—edit, run code, and present in a single, fluid experience.
-
-<!-- ![IPYNB Slide Preview Demo](media/demo.gif) -->
-<!-- 
-[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/your.extension-name)](https://marketplace.visualstudio.com/items?itemName=your.extension-name) -->
-<!-- ![GitHub License](https://img.shields.io/github/license/GeorgiaDimaki/ipynb-slide-preview) -->
-
 ---
 
 IPYNB Slide Preview transforms your Jupyter Notebooks into an interactive presentation, right inside of VS Code. Move seamlessly from analysis to presentation without ever leaving your editor.
+
+![IPYNB Slide Preview Demo](media/images/demo.gif)
+<!-- 
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/your.extension-name)](https://marketplace.visualstudio.com/items?itemName=your.extension-name) -->
+<!-- ![GitHub License](https://img.shields.io/github/license/GeorgiaDimaki/ipynb-slide-preview) -->
 
 ## Features
 
@@ -56,6 +55,17 @@ There are multiple ways to open your notebook in the slide preview.
 
 You must have the [Microsoft Python Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python) installed, as this extension relies on it to find and manage Python environments for the Jupyter kernel.
 
+<!-- ## Extension Settings
+
+Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+
+For example:
+
+This extension contributes the following settings:
+
+* `myExtension.enable`: Enable/disable this extension.
+* `myExtension.thing`: Set to `blah` to do something. -->
+
 ## Known Issues
 
 * The manual presentation mode uses a `toggle` command to hide the Side Bar. If the Side Bar is already closed when you enter presentation mode, it will be opened instead. For best results, enter presentation mode from the standard editor view.
@@ -64,3 +74,14 @@ You must have the [Microsoft Python Extension](https://marketplace.visualstudio.
 
 All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file.
 
+
+
+
+
+
+<!-- 
+## Following extension guidelines
+
+Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+
+* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines) -->

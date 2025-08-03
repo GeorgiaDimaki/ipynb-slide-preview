@@ -11028,11 +11028,6 @@ body.is-presenting .code-cell-body {
   margin-right: 6px;
   font-size: 16px;
 }
-.toolbar-group-center {
-  flex-grow: 1;
-  display: flex;
-  justify-content: center;
-}
 #undo-button,
 #redo-button {
   padding: 2px;
