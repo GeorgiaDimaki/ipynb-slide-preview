@@ -520,13 +520,12 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                             <span>Clear All Outputs</span>
                         </button>
                     </div>
-                    <div class="toolbar-group-center">
+                    <div class="toolbar-spacer"></div>
+                    <div class="toolbar-actions-right">
                         <button id="fullscreen-button" class="toolbar-button" data-tooltip="Presentation Mode">
                             <span class="codicon codicon-screen-full"></span>
                             <span>Present</span>
                         </button>
-                    </div>
-                    <div class="toolbar-actions-right">
                         <div id="kernel-status-container">
                             <span id="kernel-indicator-icon"></span>
                             <span id="kernel-indicator-name">Not Selected</span>

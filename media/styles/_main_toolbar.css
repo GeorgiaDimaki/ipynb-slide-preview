@@ -66,12 +66,6 @@
   font-size: 16px; /* Adjust icon size as needed */
 }
 
-.toolbar-group-center {
-    flex-grow: 1;
-    display: flex;
-    justify-content: center;
-}
-
 /* This rule makes the Undo/Redo buttons more compact */
 #undo-button,
 #redo-button {
