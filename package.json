@@ -41,15 +41,24 @@
           "when": "resourceExtname ==.ipynb",
           "group": "navigation"
         }
+      ],
+      "notebook/toolbar": [
+        {
+          "command": "ipynb-slide-preview.open",
+          "when": "notebookType == 'jupyter-notebook'",
+          "group": "navigation@5"
+        }
       ]
-    }
+    },
+    "commands": [
+      {
+        "command": "ipynb-slide-preview.open",
+        "title": "Open with IPYNB Slide Editor",
+        "icon": "$(vm)",
+        "shortTitle": "Slides"
+      }
+    ]
   },
-  "commands": [
-    {
-      "command": "ipynb-slide-preview.open",
-      "title": "Open with IPYNB Slide Editor"
-    }
-  ],
   "main": "./out/extension.js",
   "publisher": "",
   "description": "A VS Code extension to preview Jupyter Notebooks as interactive slide decks",
