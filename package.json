@@ -10,6 +10,15 @@
     "ms-python.python"
   ],
   "contributes": {
+    "icons": {
+      "slideshow-icon": {
+        "description": "Slideshow Preview Icon",
+        "default": {
+          "fontPath": "./media/slideshow-font.ttf",
+          "fontCharacter": "\\e900"
+        }
+      }
+    },
     "customEditors": [
       {
         "viewType": "ipynb.slidePreview",
