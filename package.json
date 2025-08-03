@@ -2,6 +2,7 @@
   "name": "ipynb-slide-preview",
   "displayName": "IPYNB Slide Preview",
   "version": "0.0.1",
+  "license": "SEE LICENSE IN LICENSE.md",
   "engines": {
     "vscode": "^1.85.0"
   },
