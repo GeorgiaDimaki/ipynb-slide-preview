@@ -13,13 +13,11 @@ pids/
 *.lock
 
 # TypeScript compilation
-# out/
+out/
 dist/
 build/
 *.tsbuildinfo
 *.js.map
-*.js 
-*.ipynb
 
 # VS Code specific
 .vscode/*
@@ -32,7 +30,6 @@ build/
 # Test output
 coverage/
 .nyc_output/
-# Electron test output
 .vscode-test/
 
 # OS generated files
@@ -44,15 +41,5 @@ coverage/
 ehthumbs.db
 Thumbs.db
 
-# IDE / Editor specific
-# .idea/ # If using JetBrains IDEs
-
-# Bundled webview assets
-# media/*.bundle.js
-# media/*.worker.js # Monaco workers
-# media/editor.main.css 
-# Keep media/preview.css 
-temp.svg
-test.html
-media/images/palette.png
-media/images/demo.mov
+# Temporary development files
+temp/
