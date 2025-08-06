@@ -103,6 +103,7 @@
     "@vscode/test-cli": "0.0.10",
     "@vscode/test-electron": "2.4.1",
     "esbuild": "0.25.3",
+    "esbuild-css-modules-plugin": "3.1.5",
     "eslint": "9.23.0",
     "fs-extra": "11.3.0",
     "typescript": "5.8.2"
