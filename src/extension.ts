@@ -1,10 +1,20 @@
 import * as vscode from 'vscode';
 import { IpynbSlideProvider } from './editor/ipynbSlideProvider';
 
-// For now, it is unused.
+/**
+ * The unique identifier for this extension, retrieved from the extension context.
+ * For now, it is unused.
+ */
 export let extensionId: string;
 
-// This method is called when your extension is activated.
+/**
+ * The main entry point for the extension. This function is called by VS Code
+ * when the extension is activated. Activation occurs the very first time a
+ * command is executed or an activation event is triggered.
+ *
+ * @param context The extension context provided by VS Code, which contains
+ * utilities and lifecycle management APIs.
+ */
 export function activate(context: vscode.ExtensionContext) {
 
     console.log('[Extension] "ipynb-slide-preview" is now active!');
@@ -28,7 +38,10 @@ export function activate(context: vscode.ExtensionContext) {
     }));
 }
 
-// This method is called when your extension is deactivated
+/**
+ * This function is called when the extension is deactivated.
+ * It's the place to perform any cleanup tasks.
+ */
 export function deactivate() {
     // Perform any cleanup tasks here if necessary
     console.log('[Extension] "ipynb-slide-preview" is now deactivated.');

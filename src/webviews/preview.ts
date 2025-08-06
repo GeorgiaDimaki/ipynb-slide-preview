@@ -1,14 +1,21 @@
+/**
+ * @file This is the main script for the webview frontend of the IPYNB Slide Preview.
+ * It is responsible for:
+ * - Setting up the Monaco Editor environment.
+ * - Rendering slides (both Markdown and Code).
+ * - Handling all user interactions (button clicks, keyboard shortcuts).
+ * - Communicating with the extension host (VS Code backend) via the `postMessage` API.
+ * - Managing the lifecycle of the Monaco Editor instance via the `EditorManager`.
+ */
+
 import { marked } from 'marked';
+import * as monaco from 'monaco-editor';
+import { EditorManager } from './editorManager';
+import { NotebookCell, CodeCell, SlidePayload, VsCodeApi, MessageFromExtension, MarkdownCell, Output } from './types';
+import { sourceToString } from './utils';
 
-import { EditorManager } from './editorManager'; // Imports the manager
-import { NotebookCell, CodeCell, SlidePayload, VsCodeApi, MessageFromExtension, MarkdownCell, Output } from './types'; // Imports shared types
-import { sourceToString } from './utils'; // Imports shared utils
-
-// Import Monaco editor core CSS if your bundler/plugin doesn't handle it automatically,
-// or if you're managing CSS manually (as in Option B we discussed).
+// --- STYLE & MONACO IMPORTS ---
 import 'monaco-editor/min/vs/editor/editor.main.css';
-
-// Import your custom CSS files
 import '../../media/styles/_base.css';
 import '../../media/styles/_layout.css';
 import '../../media/styles/_presentation_mode.css';
@@ -21,19 +28,20 @@ import '../../media/styles/_output_items.css';
 import '../../media/styles/_slide_add_controls.css';
 import '../../media/styles/_main_toolbar.css';
 
-// Import language contributions for syntax highlighting on the main thread.
-// These are for Monaco's built-in Monarch tokenizers.
+// Import language contributions for Monaco's syntax highlighting
 import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/html/html.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/css/css.contribution.js';
-// import 'monaco-editor/esm/vs/basic-languages/json/json.contribution.js';
-// Add other basic languages as needed.
 
-// --- Monaco Environment Setup for Web Workers ---
-// This tells Monaco where to load its worker scripts from.
-// The paths are relative to the root of your webview's HTML (likely the 'media' folder).
+
+// --- MONACO ENVIRONMENT SETUP ---
+/**
+ * Configures how the Monaco Editor loads its web workers. These workers are
+ * used for features like syntax validation, code completion, and formatting
+ * for various languages, running them in a separate thread from the UI.
+ */
 (globalThis as any).MonacoEnvironment = {
     getWorker: function (_moduleId: string, label: string) {
         let workerPath: string;
@@ -46,103 +54,69 @@ import 'monaco-editor/esm/vs/basic-languages/css/css.contribution.js';
         } else if (label === 'typescript' || label === 'javascript') {
             workerPath = './ts.worker.js';
         } else {
-            workerPath = './editor.worker.js'; // Default editor worker
+            workerPath = './editor.worker.js'; // Default worker
         }
-
-        console.log(`[MonacoEnvironment.getWorker] Creating worker - Label: ${label}, Path: ${workerPath}`);
         const worker = new Worker(workerPath);
-        worker.onerror = function(event) {
-            console.error(`[Worker onerror] Label: ${label}, Path: ${workerPath}, Message: ${event.message}`, event);
-        };
-        worker.onmessageerror = function(event) {
-            console.error(`[Worker onmessageerror] Label: ${label}, Path: ${workerPath}`, event);
-        };
+        worker.onerror = (event) => console.error(`[Worker onerror] Label: ${label}, Path: ${workerPath}, Message: ${event.message}`, event);
+        worker.onmessageerror = (event) => console.error(`[Worker onmessageerror] Label: ${label}, Path: ${workerPath}`, event);
         return worker;
     }
 };
 
-
+// --- VSCODE API & INITIALIZATION ---
 declare function acquireVsCodeApi(): VsCodeApi;
-
-// --- Main Webview Script ---
-
-console.log('[PreviewScript] Initializing...');
 const vscode = acquireVsCodeApi();
 EditorManager.initialize(vscode);
 
+
+// --- DOM ELEMENT REFERENCES ---
 const contentDiv = document.getElementById('slide-content') as HTMLDivElement | null;
 const prevButton = document.getElementById('prev-button') as HTMLButtonElement | null;
 const nextButton = document.getElementById('next-button') as HTMLButtonElement | null;
 const indicatorSpan = document.getElementById('slide-indicator') as HTMLSpanElement | null;
-const addSlideLeftButton = document.getElementById('add-slide-left-button') as HTMLButtonElement | null;
-const addSlideRightButton = document.getElementById('add-slide-right-button') as HTMLButtonElement | null;
-const kernelNameSpan = document.getElementById('kernel-indicator-name') as HTMLSpanElement | null;
 const kernelStatusContainer = document.getElementById('kernel-status-container') as HTMLDivElement | null;
 
-
+// --- SCRIPT STATE ---
 let currentPayloadSlideIndex: number | undefined;
-let lastReceivedPayload: SlidePayload | undefined;
-
-if (kernelStatusContainer) {
-    kernelStatusContainer.addEventListener('click', () => {
-        console.log('[PreviewScript] Kernel selector clicked. Requesting kernel selection.');
-        vscode.postMessage({ type: 'requestKernelSelection' });
-    });
-}
-
 let hasShownShortcutOverlay = false;
 
+// --- GLOBAL EVENT LISTENERS ---
+
+/**
+ * Main message bus handler. Listens for all messages coming from the
+ * extension host (e.g., slide updates, kernel status) and dispatches
+ * actions accordingly.
+ */
 window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) => {
     const message = event.data;
-    console.log('[PreviewScript] Received message:', message.type, message.payload);
     switch (message.type) {
         case 'update':
             if (message.payload) {
-                lastReceivedPayload = message.payload;
                 currentPayloadSlideIndex = message.payload.slideIndex;
                         
                 if (kernelStatusContainer) {
                     if (message.payload.kernelStatus === 'busy') {
-                        // When busy, show the spinner and a temporary message.
-                        kernelStatusContainer.innerHTML = `
-                        <span class="codicon codicon-sync spin"></span>
-                        <span id="kernel-indicator-name">Connecting...</span>
-                        `;
+                        kernelStatusContainer.innerHTML = `<span class="codicon codicon-sync spin"></span><span id="kernel-indicator-name">Connecting...</span>`;
                     } else { 
-                        // When idle, show the final kernel name.
-                        // This also correctly handles the initial state.
-                        kernelStatusContainer.innerHTML = `
-                        <span id="kernel-indicator-name">${message.payload.controllerName || 'Select Kernel'}</span>
-                        `;
+                        kernelStatusContainer.innerHTML = `<span id="kernel-indicator-name">${message.payload.controllerName || 'Select Kernel'}</span>`;
                     }
                 }
                 
                 renderSlide(message.payload);
                 updateControls(message.payload.slideIndex, message.payload.totalSlides);
                 
-                // This updates the legacy span, which we can now remove as kernelStatusContainer handles it.
-                // However, leaving it for now won't cause harm.
-                if (kernelNameSpan && message.payload.controllerName) {
-                    kernelNameSpan.textContent = message.payload.controllerName;
-                }
-                
-                const cellContainer = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"]`);
-                const runButton = cellContainer?.querySelector('.run-button') as HTMLButtonElement | null;
+                const runButton = document.querySelector(`.cell[data-slide-index="${message.payload.slideIndex}"] .run-button`) as HTMLButtonElement | null;
                 if (runButton) {
                     runButton.disabled = false;
                 }
                 
-                // Add/remove a class to the body based on the presentation state
                 if (message.payload.isInPresentationMode) {
                     document.body.classList.add('is-presenting');
-                    
                     const overlay = document.getElementById('shortcut-overlay');
                     if (overlay && !hasShownShortcutOverlay) {
                         overlay.classList.add('visible');
                         hasShownShortcutOverlay = true;
-                        setTimeout(() => {
-                            overlay.classList.remove('visible');
-                        }, 4000); // Hide after 4 seconds
+                        setTimeout(() => overlay.classList.remove('visible'), 4000);
                     }
                 } else {
                     document.body.classList.remove('is-presenting');
@@ -155,18 +129,15 @@ window.addEventListener('message', (event: MessageEvent<MessageFromExtension>) =
                 }
 
                 setPresentationButtonState(message.payload.isInPresentationMode ?? false);
-                
-            } else {
-                console.warn('[PreviewScript] updateSlide message received with no payload.');
             }
             break;
-        default:
-            // We log a generic message because TypeScript knows this case should be unreachable.
-            console.warn('[PreviewScript] Received an unknown message type from the extension.');
-            break;    
     }
 });
 
+/**
+ * Handles global keyboard shortcuts for slide navigation (Arrow Keys),
+ * presentation mode (Escape), and running cells (Ctrl/Cmd + Enter).
+ */
 window.addEventListener('keydown', (event: KeyboardEvent) => {    
     
     // If our editor manager has an active editor and it has focus,
@@ -176,35 +147,27 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
         return;
     }
 
-
     // Prevent interference if user is typing in an input field, textarea, or contenteditable
     const target = event.target as HTMLElement;
-    
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        // If focus is in a non-Monaco input/textarea, allow most keys.
-        // We only want to intercept global arrow keys for slide navigation
-        // if we are NOT in such an input.
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            // Let the input field handle arrows
             return;
         }
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey || event.shiftKey) ){
-            // Let input field handle these compound Enter presses
             return;
         }
     }
-
 
     switch (event.key) {
         case 'ArrowLeft':
             console.log('[PreviewScript] ArrowLeft pressed, posting "previous"');
             vscode.postMessage({ type: 'previous' });
-            event.preventDefault(); // Prevent default browser action for arrow keys (e.g., scrolling)
+            event.preventDefault();
             break;
         case 'ArrowRight':
             console.log('[PreviewScript] ArrowRight pressed, posting "next"');
             vscode.postMessage({ type: 'next' });
-            event.preventDefault(); // Prevent default browser action
+            event.preventDefault();
             break;
         case 'Escape':
             // Only exit if we are currently in presentation mode
@@ -214,76 +177,58 @@ window.addEventListener('keydown', (event: KeyboardEvent) => {
             }
             break;
          case 'Enter': {
-            const isMac = navigator.platform.toUpperCase().includes('MAC');
-            // Check if Ctrl (or Cmd on Mac) is pressed
-            if (isMac ? event.metaKey : event.ctrlKey) {
-                // Check if we have a valid slide index
-                if (typeof currentPayloadSlideIndex === 'number') {
-                    console.log(`[PreviewScript] Global Ctrl+Enter pressed, running slide ${currentPayloadSlideIndex}`);
-                    vscode.postMessage({ type: 'runCell', payload: { slideIndex: currentPayloadSlideIndex } });
-                    event.preventDefault(); // Prevent any default browser action
-                }
+            const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+            if ((isMac ? event.metaKey : event.ctrlKey) && typeof currentPayloadSlideIndex === 'number') {
+                vscode.postMessage({ type: 'runCell', payload: { slideIndex: currentPayloadSlideIndex } });
+                event.preventDefault();
             }
             break;
         }
-        // Add other keys if needed, e.g., Space for next, Shift+Space for previous
-        // case ' ':
-        //     vscode.postMessage({ type: 'next' });
-        //     event.preventDefault();
-        //     break;
     }
 });
 
+// --- DOM MANIPULATION & RENDER FUNCTIONS ---
+
+/**
+ * Dynamically creates the toolbar for a given cell.
+ * @param cell The data for the cell.
+ * @param slideIndex The index of the cell.
+ * @param cellContainerElement The parent DOM element for the cell.
+ * @returns An object containing the created toolbar element and a reference to the execution status div.
+ */
 function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainerElement: HTMLDivElement): { toolbar: HTMLDivElement, executionStatusDiv: HTMLDivElement | null } {
     const toolbar = document.createElement('div');
     toolbar.className = 'cell-toolbar';
 
     const leftActions = document.createElement('div');
-    leftActions.className = 'toolbar-actions-left'; // Style this with display:flex
-
+    leftActions.className = 'toolbar-actions-left'; 
+    
     const rightActions = document.createElement('div');
-    rightActions.className = 'toolbar-actions-right'; // Style this with display:flex
-
+    rightActions.className = 'toolbar-actions-right';
+    
     let executionStatusDiv: HTMLDivElement | null = null;
 
-    // Add "Run" button for code cells (will be pushed to the left by CSS)
     if (cell.cell_type === 'code') {
-        // 1. Create a container for the run button and its status
         const runContainer = document.createElement('div');
         runContainer.className = 'run-container';
-
-        // 2. Create and add the Run button
         const runButton = document.createElement('button');
         runButton.className = 'cell-action-button run-button';
         runButton.innerHTML = `▶ <span class="run-text">Run</span>`;
-
         const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
-        const shortcut = isMac ? '⌘↩' : 'Ctrl+Enter';
-        runButton.dataset.tooltip = `Run Cell (${shortcut})`;
-
-        // (We will add the onclick handler in Step 3)
+        runButton.dataset.tooltip = `Run Cell (${isMac ? '⌘↩' : 'Ctrl+Enter'})`;
         runContainer.appendChild(runButton);
 
-        // 3. Create and add the placeholder for the status
         executionStatusDiv = document.createElement('div');
         executionStatusDiv.className = 'execution-status';
-
-        // Check if there's persistent execution data in the cell's metadata
         const executionResult = (cell.metadata as any)?.slide_show_editor?.execution;
         if (executionResult) {
-            const icon = executionResult.success
-                ? `<span class="icon success">✔</span>`
-                : `<span class="icon error">✖</span>`;
+            const icon = executionResult.success ? `<span class="icon success">✔</span>` : `<span class="icon error">✖</span>`;
             executionStatusDiv.innerHTML = `${icon} ${executionResult.duration}`;
         }
-
-        // 4. Add the whole container to the toolbar
         leftActions.appendChild(runContainer);
 
-        // 5. Assign the onclick handler now that all elements exist
         runButton.onclick = () => {
-            // Find the status div and show the spinner
-            if (executionStatusDiv) { // Check if the div exists
+            if (executionStatusDiv) {
                 executionStatusDiv.innerHTML = '<div class="spinner"></div>';
             }
             runButton.disabled = true;
@@ -292,7 +237,6 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
     } else if (cell.cell_type === 'markdown') {
         const toggleEditButton = document.createElement('button');
         toggleEditButton.className = 'cell-action-button markdown-toggle-edit-button';
-        
         toggleEditButton.dataset.tooltip = 'Edit Markdown';
         toggleEditButton.onclick = () => {
             const body = cellContainerElement.querySelector('.markdown-cell-body');
@@ -306,20 +250,15 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
                 EditorManager.toggleMarkdownEdit(slideIndex, cellContainerElement, cell as MarkdownCell, monacoTheme);
             }        
         };
-        leftActions.appendChild(toggleEditButton); // Place it on the left for now
+        leftActions.appendChild(toggleEditButton); 
     }
 
     const deleteButton = document.createElement('button');
     deleteButton.className = 'cell-action-button delete-button';
     deleteButton.dataset.tooltip = 'Delete Cell';
     deleteButton.innerHTML = `<span class="codicon codicon-trash"></span>`;
-    
-    deleteButton.onclick = () => {
-        console.log(`[PreviewScript] Posting 'requestDeleteConfirmation' for index ${slideIndex}`);
-        vscode.postMessage({ type: 'requestDeleteConfirmation', payload: { slideIndex } });
-    };    
+    deleteButton.onclick = () => vscode.postMessage({ type: 'requestDeleteConfirmation', payload: { slideIndex } });    
     rightActions.appendChild(deleteButton);
-
 
     // TODO: Add "More Actions" button to rightActions
     // const moreButton = document.createElement('button');
@@ -327,19 +266,19 @@ function createCellToolbar(cell: NotebookCell, slideIndex: number, cellContainer
     // moreButton.textContent = '...';
     // rightActions.appendChild(moreButton);
 
-
-    toolbar.appendChild(leftActions);
-    // If leftActions is empty, this spacer won't do much if rightActions is also empty.
-    // If only rightActions has content, it will be pushed to right by this spacer.
     const spacer = document.createElement('div');
-    spacer.style.flexGrow = '1'; // This pushes rightActions to the end
+    spacer.style.flexGrow = '1';
+    toolbar.appendChild(leftActions);
     toolbar.appendChild(spacer);
     toolbar.appendChild(rightActions);
     
     return { toolbar, executionStatusDiv };
 }
 
-// This function determines the Monaco theme and applies it.
+/**
+ * Checks the current VS Code theme on the body element and applies the
+ * corresponding theme to the active Monaco editor instance.
+ */
 function applyCurrentTheme() {
     let monacoTheme = 'vs-dark'; // Default
     if (document.body.classList.contains('vscode-light')) {
@@ -350,142 +289,82 @@ function applyCurrentTheme() {
     EditorManager.setTheme(monacoTheme);
 }
 
-const themeObserver = new MutationObserver((mutationsList, observer) => {
-    // We only care about changes to the 'class' attribute.
-    for (const mutation of mutationsList) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            console.log('[PreviewScript] Body class changed, updating theme.');
-            applyCurrentTheme();
-            break; // No need to check other mutations
-        }
-    }
-});
 
-
-themeObserver.observe(document.body, { attributes: true });
-
-console.log('[PreviewScript] Theme change observer is now active.');
-
+/**
+ * Renders a single slide's content into the main content area.
+ * It has two paths:
+ * 1. Non-destructive update: If the slide being updated already has an active editor,
+ * it will update the editor's content and outputs without a full re-render.
+ * 2. Full re-render: If switching to a new slide, it disposes the old editor,
+ * clears the content area, and builds the new slide from scratch.
+ * @param payload The data payload for the slide to render.
+ */
 function renderSlide(payload: SlidePayload): void {
     if (!contentDiv) { return; }
     console.log(`[PreviewScript] renderSlide called for slide ${payload.slideIndex}`);
 
-    // If we get an update for the slide that already has an active editor,
-    // we just update its content instead of doing a disruptive full re-render.
+    // Path 1: Non-destructive update for an already-active editor.
     if (EditorManager.activeEditor && EditorManager.activeEditorInfo?.slideIndex === payload.slideIndex && payload.cell && EditorManager.activeEditorInfo.cellType === payload.cell.cell_type) {
         const cellContainerDiv = EditorManager.activeEditorInfo.cellContainer.closest('.cell') as HTMLDivElement | null;
-        if (!cellContainerDiv) { return; }
+        if (!cellContainerDiv) {return;}
 
-        console.log(`[PreviewScript] renderSlide: Performing non-destructive update for slide ${payload.slideIndex}`);
-
-        // --- 1. Update Editor Source (if needed) ---
         const newSource = sourceToString(payload.cell.source);
         const editorModel = EditorManager.activeEditor.getModel();
         if (editorModel && editorModel.getValue() !== newSource) {
-            console.log(`[PreviewScript] Applying non-destructive update to active editor's source.`);
-            const fullRange = editorModel.getFullModelRange();
-            editorModel.pushEditOperations([], [{ range: fullRange, text: newSource }], () => null);
+            editorModel.pushEditOperations([], [{ range: editorModel.getFullModelRange(), text: newSource }], () => null);
             EditorManager.activeEditorInfo.initialSource = newSource;
         }
 
-        // --- 2. Re-bind Toolbar Listeners (if needed) ---
         const oldToolbar = cellContainerDiv.querySelector('.cell-toolbar');
         if (oldToolbar) {
-            // Get both the new toolbar and the new status div
             const { toolbar: newToolbar, executionStatusDiv: newExecutionStatusDiv } = createCellToolbar(payload.cell, payload.slideIndex, cellContainerDiv);
             oldToolbar.replaceWith(newToolbar);
-
-            const cellBody = cellContainerDiv.querySelector('.code-cell-body') || cellContainerDiv.querySelector('.markdown-cell-body');
+            const cellBody = cellContainerDiv.querySelector('.code-cell-body,.markdown-cell-body');
             if (cellBody) {
-                // Remove the old status div if it exists
-                const oldStatusDiv = cellBody.querySelector('.execution-status');
-                oldStatusDiv?.remove();
-                // Append the new one if it was created
-                if (newExecutionStatusDiv) {
-                    cellBody.appendChild(newExecutionStatusDiv);
-                }
+                cellBody.querySelector('.execution-status')?.remove();
+                newExecutionStatusDiv && cellBody.appendChild(newExecutionStatusDiv);
             }
         }
 
         const executionCountDiv = cellContainerDiv.querySelector('.execution-count');
         if (executionCountDiv && payload.cell.cell_type === 'code') {
-            if (payload.cell.execution_count) {
-                executionCountDiv.textContent = `[${payload.cell.execution_count}]`;
-            } else {
-                executionCountDiv.textContent = '[ ]';
-            }
+            executionCountDiv.textContent = payload.cell.execution_count ? `[${payload.cell.execution_count}]` : '[ ]';
         }
 
-        // --- 3. Render Outputs ---
         if (payload.cell.cell_type === 'code') {
             const codeCell = payload.cell as CodeCell;
             const cellBody = cellContainerDiv.querySelector('.code-cell-body');
-
             if (cellBody) {
-                // Find or create the output wrapper
                 let outputWrapperDiv = cellBody.querySelector('.cell-output-wrapper') as HTMLDivElement;
-                if (!outputWrapperDiv) {
-                    outputWrapperDiv = document.createElement('div');
-                    outputWrapperDiv.className = 'cell-output-wrapper';
-                    cellBody.appendChild(outputWrapperDiv);
-                }
-
-                // Find or create the actual output container
-                let outputDiv = outputWrapperDiv.querySelector('.code-output') as HTMLDivElement;
-                if (!outputDiv) {
-                    outputDiv = document.createElement('div');
-                    outputDiv.className = 'code-output';
-                    outputWrapperDiv.appendChild(outputDiv);
-                }
-
-                // Always clear previous outputs before rendering new ones
-                outputDiv.innerHTML = '';
-
                 if (codeCell.outputs && codeCell.outputs.length > 0) {
-                    // ...ensure the wrapper and output divs exist, then render into them.
-                    let ensuredWrapper = outputWrapperDiv;
-                    if (!ensuredWrapper) {
-                        ensuredWrapper = document.createElement('div');
-                        ensuredWrapper.className = 'cell-output-wrapper';
-                        cellBody.appendChild(ensuredWrapper);
+                    if (!outputWrapperDiv) {
+                        outputWrapperDiv = document.createElement('div');
+                        outputWrapperDiv.className = 'cell-output-wrapper';
+                        cellBody.appendChild(outputWrapperDiv);
                     }
-                    let outputDiv = ensuredWrapper.querySelector('.code-output') as HTMLDivElement;
+                    let outputDiv = outputWrapperDiv.querySelector('.code-output') as HTMLDivElement;
                     if (!outputDiv) {
                         outputDiv = document.createElement('div');
                         outputDiv.className = 'code-output';
-                        ensuredWrapper.appendChild(outputDiv);
+                        outputWrapperDiv.appendChild(outputDiv);
                     }
-                    outputDiv.innerHTML = ''; // Clear previous before rendering new
-                    
+                    outputDiv.innerHTML = '';
                     codeCell.outputs.forEach((output: any) => renderOutput(output, outputDiv));
                 } else {
-                    console.log('[PreviewScript] No outputs to render or outputs are empty.');
-                    if (outputWrapperDiv) {
-                        outputWrapperDiv.remove();
-                    }
+                    outputWrapperDiv?.remove();
                 }
             }
         }
-
-        // After all updates are done, remove the busy state from the cell.
-        cellContainerDiv.classList.remove('is-busy');
         
-        // Find the run button and re-enable it.
+        cellContainerDiv.classList.remove('is-busy');
         const runButton = cellContainerDiv.querySelector('.run-button') as HTMLButtonElement | null;
-        if (runButton) {
-            runButton.disabled = false;
-            // If your onclick handler changes the button's text, restore it here.
-            // For example, if you used the CSS pseudo-element, no change is needed.
-        }
-
-        // After this non-destructive update, we stop.
+        if (runButton) {runButton.disabled = false;}
         return;
     }
 
-    // Call EditorManager.disposeCurrent() at the very beginning.
-    // This commits any pending changes and cleans up the editor from the previous slide.
+    
+    // Path 2: Full re-render for a new slide.
     EditorManager.disposeCurrent();
-
     contentDiv.innerHTML = ''; // Clear previous slide
 
     const cell = payload.cell;
@@ -600,6 +479,12 @@ function renderSlide(payload: SlidePayload): void {
     contentDiv.appendChild(cellContainerDiv);
 }
 
+/**
+ * Renders a single Jupyter output object into a given container element.
+ * It handles various output types like streams, display data (images, HTML), and errors.
+ * @param output The Jupyter output object to render.
+ * @param container The parent DOM element to append the rendered output to.
+ */
 function renderOutput(output: Output, container: HTMLElement): void {
     const outputElement = document.createElement('div');
     outputElement.className = `output-item output-${output.output_type}`;
@@ -648,7 +533,7 @@ function renderOutput(output: Output, container: HTMLElement): void {
                 textPre.textContent = sourceToString(data['text/plain']);
                 outputElement.appendChild(textPre);
                 renderedContent = true;
-            } else if (Object.keys(data).length > 0) { // Fallback for other data types
+            } else if (Object.keys(data).length > 0) { 
                 const fallbackPre = document.createElement('pre');
                 fallbackPre.textContent = `Unsupported MIME type(s): ${Object.keys(data).join(', ')}\nData: ${JSON.stringify(data, null, 2).substring(0, 500)}`;
                 outputElement.appendChild(fallbackPre);
@@ -677,11 +562,14 @@ function renderOutput(output: Output, container: HTMLElement): void {
     }
 }
 
+/**
+ * Updates the bottom navigation controls (slide indicator, prev/next buttons).
+ * @param currentIndex The index of the current slide.
+ * @param totalSlides The total number of slides.
+ */
 function updateControls(currentIndex: number, totalSlides: number): void {
-    if (!indicatorSpan || !prevButton || !nextButton) {
-        console.warn('[PreviewScript] Control elements not found in updateControls.');
-        return;
-    }
+    if (!indicatorSpan || !prevButton || !nextButton) {return;}
+    
     if (totalSlides > 0) {
         indicatorSpan.textContent = `${currentIndex + 1} / ${totalSlides}`;
         prevButton.disabled = currentIndex <= 0;
@@ -693,87 +581,12 @@ function updateControls(currentIndex: number, totalSlides: number): void {
     }
 }
 
-// --- Event Listeners for Main Controls ---
-if (prevButton) {
-    prevButton.addEventListener('click', () => {
-        console.log("[PreviewScript] Previous button clicked");
-        vscode.postMessage({ type: 'previous' });
-    });
-} else {
-    console.warn("[PreviewScript] Previous button not found.");
-}
-
-if (nextButton) {
-    nextButton.addEventListener('click', () => {
-        console.log("[PreviewScript] Next button clicked");
-        vscode.postMessage({ type: 'next' });
-    });
-} else {
-    console.warn("[PreviewScript] Next button not found.");
-}
-
-function setupInsertControls() {
-    // This function finds all four buttons and attaches the correct
-    // 'addCellBefore' or 'addCellAfter' message to them.
-    
-    const setupButton = (id: string, action: 'addCellBefore' | 'addCellAfter', cellType: 'code' | 'markdown') => {
-        const button = document.getElementById(id);
-        button?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof currentPayloadSlideIndex === 'number') {
-                vscode.postMessage({ type: action, payload: { currentSlideIndex: currentPayloadSlideIndex, cellType } });
-            }
-        });
-    };
-
-    setupButton('add-code-before', 'addCellBefore', 'code');
-    setupButton('add-markdown-before', 'addCellBefore', 'markdown');
-    setupButton('add-code-after', 'addCellAfter', 'code');
-    setupButton('add-markdown-after', 'addCellAfter', 'markdown');
-}
-
-// Call the setup function once the DOM is ready
-setupInsertControls();
-
-// --- Initialization ---
-if (contentDiv) {
-    contentDiv.textContent = 'Initializing slide preview...'; // Initial placeholder
-} else {
-    console.error("[PreviewScript] Main contentDiv not found on initial load!");
-    document.body.innerHTML = '<p style="color:red; font-size:18px;">Error: Webview content area not found. Preview cannot load.</p>';
-}
-
-console.log("[PreviewScript] Sending 'ready' message to extension host.");
-vscode.postMessage({ type: 'ready' });
-
-
-const clearOutputsButton = document.getElementById('clear-outputs-button');
-if (clearOutputsButton) {
-    clearOutputsButton.addEventListener('click', () => {
-        console.log("[PreviewScript] Clear All Outputs button clicked");
-        vscode.postMessage({ type: 'clearAllOutputs' });
-    });
-}
-
-const runAllButton = document.getElementById('run-all-button');
-if (runAllButton) {
-    runAllButton.addEventListener('click', () => {
-        console.log("[PreviewScript] Run All button clicked");
-        vscode.postMessage({ type: 'runAll' });
-    });
-}
-
-const restartKernelButton = document.getElementById('restart-kernel-button');
-if (restartKernelButton) {
-    restartKernelButton.addEventListener('click', () => {
-        vscode.postMessage({ type: 'restartKernel' });
-    });
-}
-
-const fullscreenButton = document.getElementById('fullscreen-button');
-
-// This function updates the button's look based on the current mode
+/**
+ * Updates the state of the fullscreen/presentation mode button.
+ * @param isPresenting Whether the UI is currently in presentation mode.
+ */
 function setPresentationButtonState(isPresenting: boolean) {
+    const fullscreenButton = document.getElementById('fullscreen-button');
     if (!fullscreenButton) {return;}
     const icon = fullscreenButton.querySelector('.codicon');
     const text = fullscreenButton.querySelector('span:not(.codicon)');
@@ -790,6 +603,26 @@ function setPresentationButtonState(isPresenting: boolean) {
     }
 }
 
+/**
+ * Attaches event listeners to the four "add cell" buttons.
+ */
+function setupInsertControls() {
+    const setupButton = (id: string, action: 'addCellBefore' | 'addCellAfter', cellType: 'code' | 'markdown') => {
+        document.getElementById(id)?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof currentPayloadSlideIndex === 'number') {
+                vscode.postMessage({ type: action, payload: { currentSlideIndex: currentPayloadSlideIndex, cellType } });
+            }
+        });
+    };
+    setupButton('add-code-before', 'addCellBefore', 'code');
+    setupButton('add-markdown-before', 'addCellBefore', 'markdown');
+    setupButton('add-code-after', 'addCellAfter', 'code');
+    setupButton('add-markdown-after', 'addCellAfter', 'markdown');
+}
+
+const fullscreenButton = document.getElementById('fullscreen-button');
+
 // When the button is clicked, toggle the state immediately AND notify the extension
 fullscreenButton?.addEventListener('click', () => {
     // Optimistically update the UI without waiting for the extension
@@ -799,62 +632,44 @@ fullscreenButton?.addEventListener('click', () => {
 
     // Before entering presentation mode, render any active markdown editor.
     EditorManager.renderActiveMarkdownEditor();
-    
-    // Now, tell the extension to perform the actual action
     vscode.postMessage({ type: 'togglePresentationMode' });
 });
 
-const undoButton = document.getElementById('undo-button');
-if (undoButton) {
-    undoButton.addEventListener('click', () => {
-        vscode.postMessage({ type: 'requestGlobalUndo' });
-    });
-}
-
-const redoButton = document.getElementById('redo-button');
-if (redoButton) {
-    redoButton.addEventListener('click', () => {
-        vscode.postMessage({ type: 'requestGlobalRedo' });
-    });
-}
+// Set up event listeners for all toolbar buttons
+document.getElementById('prev-button')?.addEventListener('click', () => vscode.postMessage({ type: 'previous' }));
+document.getElementById('next-button')?.addEventListener('click', () => vscode.postMessage({ type: 'next' }));
+document.getElementById('clear-outputs-button')?.addEventListener('click', () => vscode.postMessage({ type: 'clearAllOutputs' }));
+document.getElementById('run-all-button')?.addEventListener('click', () => vscode.postMessage({ type: 'runAll' }));
+document.getElementById('restart-kernel-button')?.addEventListener('click', () => vscode.postMessage({ type: 'restartKernel' }));
 
 
-// --- Global Custom Tooltip Logic ---
+document.getElementById('undo-button')?.addEventListener('click', () => vscode.postMessage({ type: 'requestGlobalUndo' }));
+document.getElementById('redo-button')?.addEventListener('click', () => vscode.postMessage({ type: 'requestGlobalRedo' }));
+document.getElementById('kernel-status-container')?.addEventListener('click', () => vscode.postMessage({ type: 'requestKernelSelection' }));
+// Call the setup function once the DOM is ready
+setupInsertControls();
+
+// --- Tooltip Logic ---
 const tooltip = document.getElementById('custom-tooltip-wrapper') as HTMLDivElement;
 let tooltipHideTimeout: number;
-
-
-// Show tooltip on mouseover
-
 window.addEventListener('mouseover', (event) => {
     const target = event.target as HTMLElement;
     const tooltipTarget = target.closest('[data-tooltip]');
-
-    if (!tooltipTarget || !tooltip) {
-        return;
-    }
+    if (!tooltipTarget || !tooltip) {return;}
     
     const tooltipText = tooltipTarget.getAttribute('data-tooltip');
     tooltip.textContent = tooltipText;
 
     const targetRect = tooltipTarget.getBoundingClientRect();
-    
-    // Set style to get accurate dimensions
     tooltip.style.display = 'block';
     const tooltipRect = tooltip.getBoundingClientRect();
     tooltip.style.display = '';
 
-    // Position it below the button
-    const top = targetRect.bottom + 8; // 8px margin below the button
+    const top = targetRect.bottom + 8;
     let left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
 
-    // Prevent tooltip from going off-screen
-    if (left < 5) {
-        left = 5;
-    }
-    if (left + tooltipRect.width > window.innerWidth) {
-        left = window.innerWidth - tooltipRect.width - 5;
-    }
+    if (left < 5) {left = 5;}
+    if (left + tooltipRect.width > window.innerWidth) {left = window.innerWidth - tooltipRect.width - 5;}
 
     tooltip.style.top = `${top}px`;
     tooltip.style.left = `${left}px`;
@@ -863,15 +678,20 @@ window.addEventListener('mouseover', (event) => {
     tooltip.classList.add('visible');
 });
 
-// Hide tooltip on mouseout
 window.addEventListener('mouseout', (event) => {
     const target = event.target as HTMLElement;
     const tooltipTarget = target.closest('[data-tooltip]');
-
     if (tooltipTarget && tooltip) {
-        // Use a timeout to delay hiding
-        tooltipHideTimeout = window.setTimeout(() => {
-            tooltip.classList.remove('visible');
-        }, 100); // A small delay
+        tooltipHideTimeout = window.setTimeout(() => tooltip.classList.remove('visible'), 100);
     }
 });
+
+// --- INITIAL LOAD ---
+if (contentDiv) {
+    contentDiv.textContent = 'Initializing slide preview...';
+} else {
+    document.body.innerHTML = '<p style="color:red; font-size:18px;">Error: Webview content area not found.</p>';
+}
+
+// Signal to the extension host that the webview is ready to receive data.
+vscode.postMessage({ type: 'ready' });

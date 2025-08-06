@@ -3,35 +3,42 @@ import * as monaco from 'monaco-editor';
 import { VsCodeApi, MarkdownCell } from './types'; // Import from types.ts
 import { sourceToString } from './utils'; // Import from utils.ts
 
-let vscode: VsCodeApi;
-
-export const EditorManager = {
-    
-    // State for the currently active editor
-    activeEditor: null as monaco.editor.IStandaloneCodeEditor | null,
-    activeEditorInfo: null as {
+class EditorManagerClass {
+    // Private state for the currently active editor
+    private vscode!: VsCodeApi;
+    public activeEditor: monaco.editor.IStandaloneCodeEditor | null = null;
+    public activeEditorInfo: {
         slideIndex: number;
         cellContainer: HTMLElement; // The cell body element
         initialSource: string;      // The source content when the editor was created/last committed
         cellType: 'code' | 'markdown';
-    } | null,
-    debounceTimer: undefined as number | undefined,
-    
-    initialize: function(vsCodeApi: VsCodeApi): void {
-        vscode = vsCodeApi;
-    },
-    
-    setTheme: function(theme: string) {
+    } | null = null;
+    private debounceTimer: number | undefined = undefined;
+
+    /**
+     * Initializes the manager with the VS Code API bridge.
+     * This must be called once when the webview is loaded.
+     * @param vsCodeApi The interface for posting messages to the extension host.
+     */
+    public initialize(vsCodeApi: VsCodeApi): void {
+        this.vscode = vsCodeApi;
+    }
+
+    /**
+     * Sets the Monaco theme for the currently active editor.
+     * @param theme The theme name to apply (e.g., 'vs-dark', 'hc-black').
+     */
+    public setTheme(theme: string): void {
         if (this.activeEditor) {
             monaco.editor.setTheme(theme);
             console.log(`[EditorManager] Updated active editor theme to "${theme}".`);
         }
-    },
+    }
 
     /**
      * Commits the changes from the active editor to the extension host if content has changed.
      */
-    commitChanges: function() {
+    public commitChanges(): void {
         if (!this.activeEditor || !this.activeEditorInfo) {
             return;
         }
@@ -48,7 +55,7 @@ export const EditorManager = {
         clearTimeout(this.debounceTimer);
 
         console.log(`[EditorManager] Committing changes for slide ${this.activeEditorInfo.slideIndex}.`);
-        vscode.postMessage({
+        this.vscode.postMessage({
             type: 'cellContentChanged',
             payload: {
                 slideIndex: this.activeEditorInfo.slideIndex,
@@ -58,13 +65,13 @@ export const EditorManager = {
 
         // After committing, the new source becomes the baseline for the next edit session.
         this.activeEditorInfo.initialSource = newSource;
-    },
-    
+    }
+
     /**
      * Disposes of the current active editor, committing any pending changes first.
-     * This must be called before rendering a new slide or switching editor modes.
+     * This must be called before creating a new editor or rendering a new slide.
      */
-    disposeCurrent: function() {
+    public disposeCurrent(): void {
         if (!this.activeEditor) {
             return;
         }
@@ -76,13 +83,13 @@ export const EditorManager = {
         this.activeEditor = null;
         this.activeEditorInfo = null;
         clearTimeout(this.debounceTimer);
-    },
-    
+    }
+
     /**
      * If a markdown editor is currently active, this function triggers the
-     * logic to render it back to its HTML view.
+     * logic to render it back to its HTML view. Useful before entering presentation mode.
      */
-    renderActiveMarkdownEditor: function() {
+    public renderActiveMarkdownEditor(): void {
         // Check if the active editor is for a markdown cell
         if (this.activeEditor && this.activeEditorInfo?.cellType === 'markdown') {
             console.log('[EditorManager] Rendering active markdown editor before presentation.');
@@ -91,18 +98,23 @@ export const EditorManager = {
             const button = this.activeEditorInfo.cellContainer.parentElement?.querySelector('.markdown-toggle-edit-button');
             (button as HTMLElement)?.click();
         }
-    },
+    }
 
     /**
-     * Creates a new editor for a cell, replacing any existing one.
+     * Creates a new Monaco editor instance for a cell, replacing any existing one.
+     * @param containerElement The DOM element to host the editor.
+     * @param slideIndex The index of the slide this editor belongs to.
+     * @param language The language for syntax highlighting (e.g., 'python', 'markdown').
+     * @param initialSource The initial text content of the editor.
+     * @param theme The Monaco theme to apply.
      */
-    create: function(
+    public create(
         containerElement: HTMLElement,
         slideIndex: number,
         language: string,
         initialSource: string,
         theme: string
-    ) {
+    ): void {
         // First, ensure any previous editor is fully disposed of.
         this.disposeCurrent();
         
@@ -136,6 +148,7 @@ export const EditorManager = {
             this.commitChanges();
         });
 
+        // 3. Ctrl/Cmd + Enter to "Run"
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
             if (language === 'markdown') {
                 // For markdown, "Run" means commit and switch to render view.
@@ -144,17 +157,21 @@ export const EditorManager = {
             } else {
                 // For code, "Run" means execute the cell.
                 this.commitChanges(); // Commit latest changes before running
-                vscode.postMessage({ type: 'runCell', payload: { slideIndex: this.activeEditorInfo!.slideIndex } });
+                this.vscode.postMessage({ type: 'runCell', payload: { slideIndex: this.activeEditorInfo!.slideIndex } });
             }
         });
 
         editor.focus();
-    },
+    }
 
     /**
-     * Handles the UI toggle for markdown cells between rendered and editor views.
+     * Handles the UI toggle for a markdown cell between its rendered HTML view and the editor view.
+     * @param slideIndex The index of the slide being toggled.
+     * @param cellContainer The container element of the entire markdown cell.
+     * @param cellData The data object for the markdown cell.
+     * @param theme The current VS Code theme to apply to the editor if created.
      */
-    toggleMarkdownEdit: function(slideIndex: number, cellContainer: HTMLElement, cellData: MarkdownCell, theme:string) {
+    public toggleMarkdownEdit(slideIndex: number, cellContainer: HTMLElement, cellData: MarkdownCell, theme:string): void {
         // If we are toggling the currently active editor, it means we want to "Render" it.
         if (this.activeEditor && this.activeEditorInfo?.slideIndex === slideIndex) {
             const finalSource = this.activeEditor.getValue();
@@ -176,4 +193,7 @@ export const EditorManager = {
             this.create(editorWrapper, slideIndex, 'markdown', sourceToString(cellData.source), theme);
         }
     }
-};
+}
+
+// Export a single instance to maintain the singleton pattern
+export const EditorManager = new EditorManagerClass();

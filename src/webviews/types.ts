@@ -24,7 +24,7 @@ export interface PreviousMessage { type: 'previous'; }
 export interface NextMessage { type: 'next'; }
 export interface KernelSelectionMessage { type: 'requestKernelSelection' }
 export interface RunCellMessage { type: 'runCell'; payload: { slideIndex: number }; }
-export interface DeleteCellMessage { type: 'deleteCell'; payload: { slideIndex: number }; } // Kept for direct calls if needed, though requestDeleteConfirmation is primary
+export interface DeleteCellMessage { type: 'deleteCell'; payload: { slideIndex: number }; }
 export interface RequestDeleteConfirmationMessage { type: 'requestDeleteConfirmation'; payload: { slideIndex: number }; }
 export interface AddCellBeforeMessage {
     type: 'addCellBefore';
@@ -45,23 +45,23 @@ export interface AddCellAfterMessage {
 export interface TogglePresentationModeMessage { type: 'togglePresentationMode'; }
 
 export type MessageToExtension =
-      AddCellBeforeMessage
-    | TogglePresentationModeMessage
-    | AddCellAfterMessage
-    | KernelSelectionMessage
-    | ReadyMessage
+      AddCellAfterMessage
+    | AddCellBeforeMessage
+    | CellContentChangedMessage
+    | ClearOutputsMessage
+    | DeleteCellMessage
     | GlobalRedoMessage
     | GlobalUndoMessage
-    | PreviousMessage
+    | KernelSelectionMessage
     | NextMessage
-    | RunCellMessage
-    | RestartKernelMessage
-    | DeleteCellMessage
+    | PreviousMessage
+    | ReadyMessage
     | RequestDeleteConfirmationMessage
-    | CellContentChangedMessage
+    | RestartKernelMessage
     | RunAllMessage
-    | ClearOutputsMessage;
-
+    | RunCellMessage
+    | TogglePresentationModeMessage;
+    
 // NOTEBOOK STRUCTURE
 export type Source = string | string[];
 
@@ -92,7 +92,7 @@ export interface SlidePayload {
     controllerName: string;
     executionSuccess: boolean;
     kernelStatus?: 'idle' | 'busy';
-    hasAnyOutputs?: boolean; // Add this line
+    hasAnyOutputs?: boolean;
     isInPresentationMode?: boolean;
 }
 
