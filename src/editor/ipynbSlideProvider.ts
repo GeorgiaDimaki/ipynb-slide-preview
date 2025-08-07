@@ -6,6 +6,7 @@ import { BackgroundNotebookProxyStrategy } from './backgroundNotebookProxyStrate
 import { ISpecModel } from '@jupyterlab/services/lib/kernelspec/restapi';
 import { SlidePayload } from '../webviews/types';
 import * as path from 'path';
+import * as os from 'os';
 
 
 const WORKSPACE_STATE_PREFIX = 'ipynbSlidePreview.currentSlideIndex:';
@@ -259,10 +260,19 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                                 if (uniqueKernelItems.has(pythonPath)) { continue; }
                                 const isOurKernel = spec?.name.startsWith('ipynb-slideshow-');
                                 if (uniqueKernelItems.has(pythonPath) && !isOurKernel) { continue; }
+                                const homeDir = os.homedir();
+                                
+                                const isActive = spec?.name === currentKernelName;
+                                const activeText = isActive ? " (Currently Active)" : "";
+                                // Format the path to use ~ for the home directory, like VS Code does
+                                const displayPath = pythonPath.startsWith(homeDir) 
+                                    ? `~${pythonPath.substring(homeDir.length)}` 
+                                    : pythonPath;
+
                                 const displayName = sp.display_name || 'Unnamed Kernel';
                                 uniqueKernelItems.set(pythonPath, {
                                     label: `$(notebook-kernel-icon) ${displayName}`,
-                                    description: (spec?.name === currentKernelName) ? " (Currently Active)" : "",
+                                    description: `${displayPath}${activeText}`, // Use description for the path on the right
                                     kernelName: spec!.name,
                                     pythonPath: sp?.argv[0] || ''
                                 });
