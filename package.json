@@ -103,20 +103,21 @@
     "@vscode/test-cli": "0.0.10",
     "@vscode/test-electron": "2.4.1",
     "@vscode/vsce": "^3.6.0",
+    "cross-env": "10.0.0",
     "esbuild": "0.25.3",
     "esbuild-css-modules-plugin": "3.1.5",
     "eslint": "9.23.0",
     "fs-extra": "11.3.0",
-    "typescript": "5.8.2"
-  },
-  "dependencies": {
+    "typescript": "5.8.2",
     "@jupyterlab/services": "7.4.3",
     "@types/dompurify": "3.2.0",
     "@types/node-fetch": "2.6.12",
     "@vscode/codicons": "0.0.36",
     "marked": "15.0.11",
     "monaco-editor": "0.52.2",
-    "node-fetch": "2.7.0",
+    "node-fetch": "2.7.0"
+  },
+  "dependencies": {
     "zeromq": "6.4.2"
   }
 }

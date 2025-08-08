@@ -9,3 +9,11 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+**/tsconfig.json
+!file.ts
+node_modules/**
+media/styles/**
+!node_modules/zeromq
+**/esbuild.js
+temp/**
+media/images/demo.gif

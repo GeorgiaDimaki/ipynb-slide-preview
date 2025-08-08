@@ -10,7 +10,7 @@
 
 IPYNB Slide Preview transforms your Jupyter Notebooks into an interactive presentation, right inside of VS Code. Move seamlessly from analysis to presentation without ever leaving your editor.
 
-![IPYNB Slide Preview Demo](https://github.com/GeorgiaDimaki/ipynb-slide-preview/blob/main/media/images/demo.gif)
+![IPYNB Slide Preview Demo](media/images/demo-o.gif)
 
 
 ## Features
@@ -64,4 +64,4 @@ You must have the [Microsoft Python Extension](https://marketplace.visualstudio.
 
 ## Release Notes
 
-All notable changes to this project are documented in the [CHANGELOG.md](https://github.com/GeorgiaDimaki/ipynb-slide-preview/blob/main/CHANGELOG.md) file.
+All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file.
