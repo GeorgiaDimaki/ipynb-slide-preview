@@ -10,7 +10,7 @@
   },
   "publisher": "gdimaki",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.100.0"
   },
   "extensionDependencies": [
     "ms-python.python"
