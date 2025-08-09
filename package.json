@@ -1,7 +1,8 @@
 {
   "name": "ipynb-slide-preview",
-  "displayName": "IPYNB Slide Preview",
-  "version": "1.0.0",
+  "displayName": "Notebook Slide Preview",
+  "icon": "media/images/logo.png",
+  "version": "1.0.1",
   "license": "SEE LICENSE IN LICENSE.md",
   "author": "Georgia Dimaki <georgia_dimaki@alum.mit.edu>",
   "repository": {
@@ -9,6 +10,16 @@
     "url": "https://github.com/GeorgiaDimaki/ipynb-slide-preview.git"
   },
   "publisher": "gdimaki",
+  "keywords": [
+    "notebook",
+    "slides",
+    "presentation",
+    "jupyter",
+    "ipynb",
+    "slideshow",
+    "revealjs",
+    "preview"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },

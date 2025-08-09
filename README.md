@@ -1,4 +1,4 @@
-# IPYNB Slide Preview
+# Notebook Slide Preview
 
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/gdimaki.ipynb-slide-preview)](https://marketplace.visualstudio.com/items?itemName=gdimaki.ipynb-slide-preview)
 ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/gdimaki.ipynb-slide-preview)
@@ -8,9 +8,9 @@
 > The missing interactive slide show for Jupyter in VS Code. Your notebook **is** the presentation—edit, run code, and present in a single, fluid experience.
 ---
 
-IPYNB Slide Preview transforms your Jupyter Notebooks into an interactive presentation, right inside of VS Code. Move seamlessly from analysis to presentation without ever leaving your editor.
+Notebook Slide Preview transforms your Jupyter Notebooks into an interactive presentation, right inside of VS Code. Move seamlessly from analysis to presentation without ever leaving your editor.
 
-![IPYNB Slide Preview Demo](media/images/demo-o.gif)
+![Notebook Slide Preview Demo](media/images/demo-o.gif)
 
 
 ## Features
