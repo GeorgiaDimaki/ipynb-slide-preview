@@ -3,7 +3,8 @@
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/gdimaki.ipynb-slide-preview)](https://marketplace.visualstudio.com/items?itemName=gdimaki.ipynb-slide-preview)
 ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/gdimaki.ipynb-slide-preview)
 ![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/gdimaki.ipynb-slide-preview)
-![GitHub License](https://img.shields.io/github/license/GeorgiaDimaki/ipynb-slide-preview)
+![Static License Badge](https://img.shields.io/badge/license-Custom-blue)
+
 
 > The missing interactive slide show for Jupyter in VS Code. Your notebook **is** the presentation—edit, run code, and present in a single, fluid experience.
 ---
@@ -36,8 +37,8 @@ There are multiple ways to open your notebook in the slide preview.
 ### Opening the Slide Preview
 
 1.  **From the Notebook Toolbar**: When you have a standard `.ipynb` notebook open, click the **Presentation icon** in the top-right toolbar.
-2.  **From the Command Palette**: Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and search for **"Open with IPYNB Slide Editor"**.
-3.  **From the Explorer**: Right-click on any `.ipynb` file in the file explorer and select **"Open with IPYNB Slide Editor"**.
+2.  **From the Command Palette**: Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and search for **"Open with Notebook Slide Editor"**.
+3.  **From the Explorer**: Right-click on any `.ipynb` file in the file explorer and select **"Open with Notebook Slide Editor"**.
 
 ### Interacting with Slides
 

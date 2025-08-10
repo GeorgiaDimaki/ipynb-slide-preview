@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vscode.openWith', activeEditor.notebook.uri, 'ipynb.slidePreview');
         } else {
             // If no .ipynb file is active, inform the user.
-            vscode.window.showWarningMessage('Please open an .ipynb file first to use the "Open with IPYNB Slide Editor" command.');
+            vscode.window.showWarningMessage('Please open an .ipynb file first to use the "Open with Notebook Slide Preview" command.');
         }
     }));
 }

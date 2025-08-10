@@ -2,7 +2,7 @@
   "name": "ipynb-slide-preview",
   "displayName": "Notebook Slide Preview",
   "icon": "media/images/logo.png",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "SEE LICENSE IN LICENSE.md",
   "author": "Georgia Dimaki <georgia_dimaki@alum.mit.edu>",
   "repository": {
@@ -39,7 +39,7 @@
     "customEditors": [
       {
         "viewType": "ipynb.slidePreview",
-        "displayName": "IPYNB Slide Preview",
+        "displayName": "Notebook Slide Preview",
         "selector": [
           {
             "filenamePattern": "*.ipynb"
@@ -80,7 +80,7 @@
     "commands": [
       {
         "command": "ipynb-slide-preview.open",
-        "title": "Open with IPYNB Slide Editor",
+        "title": "Open with Notebook Slide Preview",
         "icon": "$(slideshow-icon)",
         "shortTitle": "Slides"
       }
@@ -113,7 +113,7 @@
     "@typescript-eslint/parser": "8.28.0",
     "@vscode/test-cli": "0.0.10",
     "@vscode/test-electron": "2.4.1",
-    "@vscode/vsce": "^3.6.0",
+    "@vscode/vsce": "3.6.0",
     "cross-env": "10.0.0",
     "esbuild": "0.25.3",
     "esbuild-css-modules-plugin": "3.1.5",

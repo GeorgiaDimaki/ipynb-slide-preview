@@ -1,5 +1,5 @@
 /**
- * @file This is the main script for the webview frontend of the IPYNB Slide Preview.
+ * @file This is the main script for the webview frontend of the Notebook Slide Preview.
  * It is responsible for:
  * - Setting up the Monaco Editor environment.
  * - Rendering slides (both Markdown and Code).

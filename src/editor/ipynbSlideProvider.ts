@@ -18,7 +18,7 @@ interface KernelQuickPickItem extends vscode.QuickPickItem {
 }
 
 /**
- * The main controller for the IPYNB Slide Preview custom editor.
+ * The main controller for the Notebook Slide Preview custom editor.
  * This class implements the `vscode.CustomEditorProvider` interface and is responsible for:
  * - Creating and managing the lifecycle of `IpynbSlideDocument` instances.
  * - Creating, managing, and providing content for the editor's webview panel.
@@ -480,7 +480,7 @@ export class IpynbSlideProvider implements vscode.CustomEditorProvider<IpynbSlid
                 <meta charset="UTF-8">
                 <meta http-equiv="Content-Security-Policy" content="${csp.replace(/\n\s*/g, ' ').trim()}">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>IPYNB Slide Preview</title>
+                <title>Notebook Slide Preview</title>
                 <link href="${styleUri}" rel="stylesheet" />
                 <link href="${codiconsUri}" rel="stylesheet" />
                 <link href="${monacoStyleUri}" rel="stylesheet" data-name="vs/editor/editor.main" />
