@@ -3,7 +3,7 @@
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/gdimaki.ipynb-slide-preview)](https://marketplace.visualstudio.com/items?itemName=gdimaki.ipynb-slide-preview)
 ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/gdimaki.ipynb-slide-preview)
 ![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/gdimaki.ipynb-slide-preview)
-![Static License Badge](https://img.shields.io/badge/license-Custom-blue)
+![GitHub License](https://img.shields.io/github/license/GeorgiaDimaki/ipynb-slide-preview)
 
 > The missing interactive slide show for Jupyter in VS Code. Your notebook **is** the presentation—edit, run code, and present in a single, fluid experience.
 ---
