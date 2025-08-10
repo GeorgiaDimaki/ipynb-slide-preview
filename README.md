@@ -20,7 +20,7 @@ Notebook Slide Preview transforms your Jupyter Notebooks into an interactive pre
 * **Full Code Execution**: Run code cells directly from the slide view and see outputs rendered immediately, powered by a full Jupyter kernel backend.
 * **Distraction-Free Presentation Mode**: A fully immersive mode that hides all VS Code UI "chrome" for a clean presentation experience.
 * **Complete Toolbars**:
-    * **Main Toolbar**: Global actions like "Run All", "Restart KPernel", "Clear All Outputs", "Undo", and "Redo".
+    * **Main Toolbar**: Global actions like "Run All", "Restart Kernel", "Clear All Outputs", "Undo", and "Redo".
     * **Cell Toolbar**: Per-slide controls to run or delete the current cell.
 * **Seamless Editing**:
     * Full-featured code editing with syntax highlighting in code cells.
